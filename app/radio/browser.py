@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import random
 import socket
+import subprocess
 import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable
 from urllib.parse import quote, urlencode, urlparse
-from urllib.request import Request, urlopen
 
 from .shoutcast import DEFAULT_GENRES, RadioDirectoryError
 
@@ -120,13 +120,13 @@ class RadioBrowserDirectory:
 
     @staticmethod
     def _fetch(url: str) -> bytes:
-        request = Request(url, headers={
-            "User-Agent": "NovinMusicService/1.0",
-            "Accept": "*/*",
-            "Connection": "close",
-        })
-        with urlopen(request, timeout=5) as response:  # nosec B310: server is validated above
-            payload = response.read(_MAX_RESPONSE_BYTES + 1)
+        result = subprocess.run(
+            ["curl", "--fail", "--silent", "--show-error", "--location", "--max-time", "5", "--user-agent", "NovinMusicService/1.0", url],
+            check=True,
+            capture_output=True,
+            timeout=6,
+        )
+        payload = result.stdout
         if len(payload) > _MAX_RESPONSE_BYTES:
             raise RadioDirectoryError("Radio Browser response is too large")
         return payload

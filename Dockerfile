@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN mkdir -p /run/novin \
     && apt-get update \
-    && apt-get install --yes --no-install-recommends ca-certificates cifs-utils util-linux \
+    && apt-get install --yes --no-install-recommends ca-certificates cifs-utils curl util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /opt/novin /data /music /run/novin
 
