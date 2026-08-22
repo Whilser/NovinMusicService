@@ -145,6 +145,9 @@ try {
   await desktop.waitForTimeout(300);
   assert.equal(new URL(await desktop.url()).hash, "#/albums?page=2");
   assert.equal(await desktop.locator('.page-number.active').textContent(), "2");
+  await desktop.getByRole("button", { name: "Перейти к букве S" }).click();
+  await desktop.waitForFunction(() => document.querySelector('.page-number.active')?.textContent === "1");
+  assert.equal(await desktop.locator('[data-action="select-group"][data-name="Same"]').count() > 0, true);
   await desktop.goto(`${origin}/#/songs`);
   await waitForRoute(desktop, "#/songs", "Песни", ".track-row");
   assert.equal(await desktop.locator('[data-attack="yes"]').count(), 0);

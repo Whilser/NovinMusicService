@@ -1,5 +1,6 @@
 const API = "/api";
 const PAGE_SIZE = 24;
+const CATALOG_ALPHABET = [..."АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"];
 
 const routes = [
   ["home", "Главная", "home"], ["albums", "Альбомы", "albums"],
@@ -248,6 +249,20 @@ function pagination(total) {
   ]);
 }
 
+function alphabetIndex() {
+  return element("nav", { class: "alphabet-index", attrs: { "aria-label": "Быстрый переход по алфавиту" } }, CATALOG_ALPHABET.map((letter) => element("button", {
+    text: letter, dataset: { action: "alphabet-jump", letter }, attrs: { type: "button", "aria-label": `Перейти к букве ${letter}` }
+  })));
+}
+
+function alphabetLetter(value) { return String(value || "").trim().charAt(0).toUpperCase(); }
+
+async function alphabetItems() {
+  const favorite = state.route === "favorites" ? "true" : "";
+  if (state.route === "albums" || state.route === "artists") return fetchAllGroups(state.route);
+  return fetchAllTracks({ search: state.search, favorite });
+}
+
 async function loadTracks(extra = "") {
   const offset = (state.page - 1) * PAGE_SIZE;
   const query = new URLSearchParams({ limit: PAGE_SIZE, offset, search: state.search });
@@ -274,14 +289,14 @@ async function renderGroups(type) {
   const filtered = state.search ? allItems.filter((item) => (item.name || "").toLowerCase().includes(state.search.toLowerCase())) : allItems;
   const pageItems = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
   if (!pageItems.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
-  else replace(dom.content, element("div", { class: "grid catalog-grid" }, pageItems.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(filtered.length));
+  else replace(dom.content, element("div", { class: "grid catalog-grid" }, pageItems.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(filtered.length), alphabetIndex());
 }
 
 async function renderSongs(favorite = false) {
   const result = await loadTracks(favorite ? "true" : "");
   state.tracks = result.items;
   if (!result.items.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : favorite ? "Избранное пока пусто" : "В медиатеке нет песен", favorite ? "Отмечайте любимые треки сердцем — они появятся здесь." : "Запустите сканирование в настройках."));
-  else replace(dom.content, element("div", { class: "page-actions" }, [element("span", { text: `${result.total} треков` }), ...playButtons(result.items)]), trackList(result.items), pagination(result.total));
+  else replace(dom.content, element("div", { class: "page-actions" }, [element("span", { text: `${result.total} треков` }), ...playButtons(result.items)]), trackList(result.items), pagination(result.total), alphabetIndex());
 }
 
 async function renderSelectedGroup(type, name, albumArtist = "") {
@@ -403,6 +418,13 @@ document.addEventListener("click", async (event) => {
   await withButtonBusy(button, async () => { const action = button.dataset.action;
   if (action === "retry") await render();
   else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus({ focusVisible: false }); }
+  else if (action === "alphabet-jump") {
+    const items = await alphabetItems();
+    const field = state.route === "songs" || state.route === "favorites" ? "artist" : "name";
+    const index = items.findIndex((item) => alphabetLetter(item[field]) === button.dataset.letter);
+    if (index < 0) notify(`Для буквы «${button.dataset.letter}» ничего не найдено`);
+    else { state.page = Math.floor(index / PAGE_SIZE) + 1; await render(); document.querySelector("#main").focus({ focusVisible: false }); }
+  }
   else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route, Number(button.dataset.page) || 1); if (location.hash === next) await render(); else location.hash = next; }
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist, Number(button.dataset.returnPage) || 1); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
