@@ -54,14 +54,18 @@ class RadioBrowserDirectory:
                     parameters["name"] = normalized_search
                     stations = self._stations(self._payload("/json/stations/search", parameters), bounded_limit)
                 elif normalized_genre == ALL_GENRE:
-                    stations = self._stations(self._payload(f"/json/stations/topclick/{min(bounded_limit, 24)}", {"hidebroken": "true"}), bounded_limit)
+                    stations = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), bounded_limit)
+                    if len(stations) < bounded_limit:
+                        stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/topvote/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
+                    if len(stations) < bounded_limit:
+                        stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/lastclick/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
                 else:
                     genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
                     stations = self._stations(self._payload(genre_path, parameters), bounded_limit)
                     if len(stations) < _UPSTREAM_LIMIT:
                         popular = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), _UPSTREAM_LIMIT)
                         stations = self._merge_stations(stations, popular, limit=bounded_limit)
-            except (OSError, ValueError, UnicodeError, RadioDirectoryError) as error:
+            except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error
             result = {"configured": True, "source": "radio_browser", "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": stations}
             self._memory[cache_key] = {"saved_at": self.clock(), "value": result}
@@ -89,7 +93,7 @@ class RadioBrowserDirectory:
                 if isinstance(payload, list):
                     return payload
                 raise RadioDirectoryError("invalid Radio Browser response")
-            except (OSError, ValueError, UnicodeError, RadioDirectoryError) as error:
+            except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 last_error = error
         raise RadioDirectoryError("all Radio Browser servers failed") from last_error
 
