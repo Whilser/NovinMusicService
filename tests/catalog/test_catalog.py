@@ -95,6 +95,19 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertEqual(albums["items"][0]["album_artist"], "Разные исполнители")
             catalog.close()
 
+    def test_artists_include_up_to_four_distinct_album_covers_for_collages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Catalog(Path(directory) / "catalog.sqlite3")
+            catalog.reconcile_tracks(
+                [
+                    {"path": f"alpha-{index}.flac", "title": str(index), "artist": "Alpha", "album": f"Album {index}", "cover_url": f"cover-{index}"}
+                    for index in range(1, 6)
+                ]
+            )
+            artist = catalog.list_artists()["items"][0]
+            self.assertEqual(artist["album_cover_urls"].split("\x1f"), ["cover-1", "cover-2", "cover-3", "cover-4"])
+            catalog.close()
+
 
 class PlaylistTests(unittest.TestCase):
     def test_agreed_update_and_set_tracks_contract_replaces_order_atomically(self):

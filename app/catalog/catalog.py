@@ -262,7 +262,13 @@ class Catalog:
         ).fetchone()[0]
         rows = self._connection.execute(
             """SELECT t.artist AS name,COUNT(*) AS track_count,COALESCE(SUM(t.duration),0) AS duration,
-                       image.cover_id AS artist_cover_id
+                       image.cover_id AS artist_cover_id,
+                       (SELECT GROUP_CONCAT(cover_url, char(31)) FROM (
+                            SELECT cover_url FROM tracks album_tracks
+                            WHERE album_tracks.artist=t.artist AND album_tracks.cover_url<>''
+                            GROUP BY album_tracks.album, album_tracks.cover_url
+                            ORDER BY album_tracks.album COLLATE NOCASE LIMIT 4
+                        )) AS album_cover_urls
                 FROM tracks t LEFT JOIN artist_images image ON image.artist=t.artist AND image.status='ready'
                 WHERE t.artist<>'' GROUP BY t.artist
                 ORDER BY t.artist COLLATE NOCASE LIMIT ? OFFSET ?""", (limit, offset)

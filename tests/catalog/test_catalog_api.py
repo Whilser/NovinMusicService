@@ -16,7 +16,7 @@ class CatalogApiTests(unittest.TestCase):
             catalog = Catalog(root / "override.sqlite3")
             track_ids = catalog.reconcile_tracks(
                 [
-                    {"path": "one.flac", "title": "One", "artist": "Alpha", "album": "First"},
+                    {"path": "one.flac", "title": "One", "artist": "Alpha", "album": "First", "cover_url": "alpha-cover"},
                     {"path": "two.flac", "title": "Two", "artist": "Beta", "album": "Second"},
                 ]
             )["track_ids"]
@@ -37,6 +37,7 @@ class CatalogApiTests(unittest.TestCase):
                 artists = client.get("/api/artists")
                 self.assertEqual(artists.status_code, 200)
                 self.assertEqual({item["name"] for item in artists.json()["items"]}, {"Alpha", "Beta"})
+                self.assertEqual(next(item for item in artists.json()["items"] if item["name"] == "Alpha")["album_covers"], ["alpha-cover"])
 
                 created = client.post("/api/playlists", json={"name": "Drive"})
                 self.assertEqual(created.status_code, 201)

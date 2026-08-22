@@ -275,7 +275,11 @@ try {
   assert.equal(await mobile.locator("#fullscreen-cover img[src='/api/covers/cover-a']").count(), 1);
   await mobile.keyboard.press("Escape");
   assert.equal(await mobile.locator("#fullscreen-player").isVisible(), false);
+  player = { ...player, state: "pause" };
+  await mobile.waitForFunction(() => Boolean(document.querySelector('[data-track-id="3"] [aria-label="Воспроизвести"]')));
   await mobile.locator('[data-track-id="3"]').getByRole("button", { name: "Воспроизвести" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 1);
+  player = { ...player, state: "play" };
+  await mobile.waitForFunction(() => Boolean(document.querySelector('#player [aria-label="Пауза"]')));
   await mobile.getByRole("button", { name: "Воспроизвести все" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 2);
   await mobile.getByRole("button", { name: "Перемешать" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 3);
   await mobile.locator("#player").getByRole("button", { name: "Предыдущий трек" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 1);

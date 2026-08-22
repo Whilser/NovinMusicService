@@ -65,6 +65,8 @@ def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=5
         cover_id = item.pop("artist_cover_id", None)
         if cover_id:
             item["cover_url"] = f"/api/covers/{cover_id}"
+        covers = item.pop("album_cover_urls", "")
+        item["album_covers"] = [cover for cover in covers.split("\x1f") if cover] if covers else []
     return result
 
 
