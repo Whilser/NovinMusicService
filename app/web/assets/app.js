@@ -38,6 +38,19 @@ function element(tag, options = {}, children = []) {
 
 function replace(target, ...children) { target.replaceChildren(...children.flat().filter(Boolean)); }
 function iconButton(label, text, action, data = {}) { return element("button", { class: "icon-button", text, dataset: { action, ...data }, attrs: { type: "button", "aria-label": label } }); }
+async function withButtonBusy(button, operation) {
+  if (!button || button.dataset.busy === "true") return;
+  const wasDisabled = button.disabled;
+  button.dataset.busy = "true"; button.classList.add("is-busy"); button.disabled = true;
+  button.setAttribute("aria-disabled", "true"); button.setAttribute("aria-busy", "true");
+  try { return await operation(); }
+  finally {
+    if (button.isConnected) {
+      delete button.dataset.busy; button.classList.remove("is-busy"); button.disabled = wasDisabled;
+      button.setAttribute("aria-disabled", String(wasDisabled)); button.removeAttribute("aria-busy");
+    }
+  }
+}
 function locationFromHash() {
   const raw = location.hash.replace(/^#\/?/, "");
   const [path, queryString = ""] = raw.split("?");
@@ -215,10 +228,11 @@ async function renderSettings() {
   const settings = await request("/settings");
   const share = await request("/share/status").catch(() => ({ state: "error" }));
   const scan = await request("/scan/status");
-  const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [element("h2", { text: "Сетевая папка SMB" }), element("p", { text: `Статус: ${share.state || "не настроено"}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
+  const authentication = share.authentication === "credentials" ? "логин и пароль из .env" : share.authentication === "guest" ? "guest" : "ещё не проверялась";
+  const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [element("h2", { text: "Сетевая папка SMB" }), element("p", { text: `Статус: ${share.state || "не настроено"} · Авторизация: ${authentication}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
   const mpd = element("form", { class: "settings-card", dataset: { form: "mpd" } }, [element("h2", { text: "MPD" }), element("p", { text: "Пароль, если нужен, задаётся только переменной MPD_PASSWORD." }), element("div", { class: "field-grid" }, [field("mpd_host", "Host", settings.mpd_host || "host.docker.internal"), field("mpd_port", "Port", settings.mpd_port || "6600", "number"), field("mpd_uri_prefix", "URI-префикс", settings.mpd_uri_prefix)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить и проверить", type: "submit" })])]);
   const counters = scan.counters || {}; const progress = scan.state === "running" ? Math.min(95, (counters.discovered || 0) ? 55 + (counters.indexed || 0) / counters.discovered * 40 : 15) : scan.state === "completed" ? 100 : 0;
-  const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${scan.state || "не запускалось"}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan" }, attrs: { type: "button" } })]);
+  const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${scan.state || "не запускалось"}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: scan.state === "running" ? "primary is-busy" : "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan", ...(scan.state === "running" ? { busy: "true" } : {}) }, attrs: { type: "button", ...(scan.state === "running" ? { "aria-busy": "true", "aria-disabled": "true" } : {}) } })]);
   replace(dom.content, element("div", { class: "settings-grid" }, [smb, mpd, scanner]));
   clearTimeout(renderSettings.pollTimer);
   if (scan.state === "running") renderSettings.pollTimer = setTimeout(() => { if (state.route === "settings") renderSettings().catch(errorView); }, 1000);
@@ -256,13 +270,13 @@ async function play(ids, shuffle = false) { try { await request("/player/play", 
 async function command(name, params = {}) { try { await request("/player/command", { method: "POST", body: JSON.stringify({ command: name, params }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
 
 function openPlaylistDialog(mode, data = {}) { dom.dialog.dataset.mode = mode; dom.dialog.dataset.id = data.id || ""; dom.dialogTitle.textContent = mode === "rename" ? "Переименовать плейлист" : "Новый плейлист"; dom.playlistName.value = data.name || ""; dom.dialog.showModal(); dom.playlistName.focus(); }
-async function savePlaylist(event) { event.preventDefault(); const name = dom.playlistName.value.trim(); if (!name) return; try { if (dom.dialog.dataset.mode === "rename") { const id = Number(dom.dialog.dataset.id); await request(`/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = { id }; await renderPlaylist(id); } else { await request("/playlists", { method: "POST", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = null; await render(); } } catch (error) { notify(apiMessage(error)); } }
+async function savePlaylist(event) { event.preventDefault(); const name = dom.playlistName.value.trim(); if (!name) return; await withButtonBusy(event.submitter || dom.playlistSave, async () => { try { if (dom.dialog.dataset.mode === "rename") { const id = Number(dom.dialog.dataset.id); await request(`/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = { id }; await renderPlaylist(id); } else { await request("/playlists", { method: "POST", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = null; await render(); } } catch (error) { notify(apiMessage(error)); } }); }
 
 document.addEventListener("click", async (event) => {
   const routeLink = event.target.closest("[data-route]");
   if (routeLink) { event.preventDefault(); const next = routePath(routeLink.dataset.route); if (location.hash === next) { state.selected = null; state.page = 1; await render(); } else location.hash = next; return; }
   const button = event.target.closest("[data-action]"); if (!button) return;
-  const action = button.dataset.action;
+  await withButtonBusy(button, async () => { const action = button.dataset.action;
   if (action === "retry") await render();
   else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus(); }
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
@@ -278,15 +292,16 @@ document.addEventListener("click", async (event) => {
   else if (action === "move-track") { const index = state.tracks.findIndex((track) => track.id === Number(button.dataset.id)); const target = index + (button.dataset.direction === "up" ? -1 : 1); if (target >= 0 && target < state.tracks.length) { const order = state.tracks.map((track) => track.id); [order[index], order[target]] = [order[target], order[index]]; try { await request(`/playlists/${state.selected.id}/tracks`, { method: "PUT", body: JSON.stringify({ track_ids: order }) }); await renderPlaylist(state.selected.id); } catch (error) { actionError(error); } } }
   else if (action === "add-to-playlist") { try { const playlists = await request("/playlists"); if (!playlists.length) { notify("Сначала создайте плейлист"); return; } const names = playlists.map((item, index) => `${index + 1}. ${item.name}`).join("\n"); const choice = Number(prompt(`Выберите номер плейлиста:\n${names}`)); const selected = playlists[choice - 1]; if (selected) { await request(`/playlists/${selected.id}/tracks`, { method: "POST", body: JSON.stringify({ track_id: Number(button.dataset.id) }) }); notify(`Добавлено в «${selected.name}»`); } } catch (error) { actionError(error); } }
   else if (action === "scan") { try { await request("/scan", { method: "POST" }); notify("Сканирование запущено"); await renderSettings(); } catch (error) { notify(apiMessage(error)); } }
+  });
 });
 
 document.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-form]"); if (!form) return; event.preventDefault(); const values = Object.fromEntries(new FormData(form));
-  try {
+  await withButtonBusy(event.submitter || form.querySelector('button[type="submit"]'), async () => { try {
     if (form.dataset.form === "smb") { await request("/share", { method: "POST", body: JSON.stringify({ host: values.smb_host, share: values.smb_share, domain: values.smb_domain, options: values.smb_options }) }); notify("SMB подключён"); }
     else { await request("/settings", { method: "PATCH", body: JSON.stringify(values) }); const result = await request("/settings/test-mpd", { method: "POST" }); notify(result.online ? "MPD доступен" : "MPD не отвечает"); }
     await renderSettings();
-  } catch (error) { notify(apiMessage(error)); }
+  } catch (error) { notify(apiMessage(error)); } });
 });
 
 dom.dialog.querySelector("form").addEventListener("submit", savePlaylist);
@@ -294,7 +309,7 @@ document.querySelector("#playlist-cancel").addEventListener("click", () => dom.d
 document.querySelector("[data-skip-link]").addEventListener("click", (event) => { event.preventDefault(); document.querySelector("#main").focus(); });
 dom.search.addEventListener("input", () => { clearTimeout(dom.search.timer); dom.search.timer = setTimeout(async () => { state.search = dom.search.value.trim(); state.page = 1; state.selected = null; await render(); }, 280); });
 window.addEventListener("hashchange", async () => { const next = locationFromHash(); state.route = next.route; state.selected = next.selected; state.page = 1; await render(); });
-document.querySelector(".transport").addEventListener("click", async (event) => { const button = event.target.closest("[data-command]"); if (!button) return; const name = button.dataset.command === "play" && state.player?.state === "play" ? "pause" : button.dataset.command; await command(name); });
+document.querySelector(".transport").addEventListener("click", async (event) => { const button = event.target.closest("[data-command]"); if (!button) return; await withButtonBusy(button, async () => { const name = button.dataset.command === "play" && state.player?.state === "play" ? "pause" : button.dataset.command; await command(name); }); });
 dom.seek.addEventListener("change", () => command("seek", { position: Number(dom.seek.value) }));
 dom.volume.addEventListener("change", () => command("volume", { volume: Number(dom.volume.value) }));
 
@@ -312,7 +327,7 @@ async function updatePlayer(player) {
   state.player = player; const online = Boolean(player?.online); dom.player.classList.toggle("online", online); dom.player.classList.toggle("offline", !online); dom.playerState.textContent = online ? (player.state === "play" ? "Играет" : "Пауза") : "Не в сети";
   const song = player?.song; dom.playerTitle.textContent = song?.title || song?.file || "Ничего не играет"; dom.playerArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
   const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0); dom.elapsed.textContent = formatTime(elapsed); dom.duration.textContent = formatTime(duration); dom.seek.max = String(Math.max(1, duration)); dom.seek.value = String(Math.min(elapsed, duration || 1)); dom.volume.value = String(Number(player?.volume || 0));
-  for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { control.disabled = !online; control.setAttribute("aria-disabled", String(!online)); }
+  for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { const disabled = !online || control.dataset.busy === "true"; control.disabled = disabled; control.setAttribute("aria-disabled", String(disabled)); }
   const toggle = document.querySelector(".play-toggle"); toggle.textContent = player?.state === "play" ? "Ⅱ" : "▶"; toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
   replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.textContent = "♪";
 }

@@ -17,6 +17,7 @@ class WebApplicationTests(unittest.TestCase):
                 deep_link = client.get("/albums")
                 script = client.get("/assets/app.js")
                 styles = client.get("/assets/styles.css")
+                busy_styles = client.get("/assets/busy.css")
                 mobile_styles = client.get("/assets/mobile.css")
                 missing_api = client.get("/api/does-not-exist")
 
@@ -29,6 +30,9 @@ class WebApplicationTests(unittest.TestCase):
             self.assertNotIn(".innerHTML", script.text)
             self.assertEqual(styles.status_code, 200)
             self.assertIn("prefers-reduced-motion", styles.text)
+            self.assertEqual(busy_styles.status_code, 200)
+            self.assertIn("button-stripes", busy_styles.text)
+            self.assertIn("withButtonBusy", script.text)
             self.assertEqual(mobile_styles.status_code, 200)
             self.assertIn("repeat(7", mobile_styles.text)
             self.assertEqual(missing_api.status_code, 404)

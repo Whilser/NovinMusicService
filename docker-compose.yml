@@ -22,6 +22,8 @@ services:
       MPD_PASSWORD: ${MPD_PASSWORD:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      # Docker's embedded DNS does not forward multicast .local lookups.
+      - "novincloud.local:10.0.1.52"
     ports:
       - "${NOVIN_BIND_ADDRESS:-127.0.0.1}:${NOVIN_PORT:-8000}:8000"
     volumes:

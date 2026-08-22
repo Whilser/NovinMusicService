@@ -86,7 +86,10 @@ class DeliveryIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(["no-new-privileges:true"], service["security_opt"])
         self.assertNotRegex(compose, r"(?m)^\s*privileged\s*:")
-        self.assertEqual(["host.docker.internal:host-gateway"], service["extra_hosts"])
+        self.assertEqual(
+            ["host.docker.internal:host-gateway", "novincloud.local:10.0.1.52"],
+            service["extra_hosts"],
+        )
         self.assertIn("novin_data:/data", service["volumes"])
         self.assertIs(True, service["read_only"])
         self.assertIn("healthcheck", service)

@@ -29,6 +29,7 @@ class ShareManagerTests(unittest.TestCase):
         status = manager.apply({"host": "nas.local", "share": "Music"})
 
         self.assertEqual(status["state"], "connected")
+        self.assertEqual(status["authentication"], "guest")
         self.assertEqual(calls, [["mount", "-t", "cifs", "//nas.local/Music", "/music", "-o", "ro,guest"]])
 
     def test_rejects_command_injection_and_writable_options(self):
@@ -67,6 +68,7 @@ class ShareManagerTests(unittest.TestCase):
         self.assertNotIn("very-secret", rendered)
         self.assertNotIn("very-secret", repr(status))
         self.assertEqual(status["state"], "connected")
+        self.assertEqual(status["authentication"], "credentials")
         self.assertFalse(Path(credential_paths[0]).exists())
 
     def test_mount_failure_reports_sanitized_error_status(self):
@@ -76,7 +78,10 @@ class ShareManagerTests(unittest.TestCase):
         manager = ShareManager(runner=run, env={})
         status = manager.apply({"host": "nas", "share": "Music"})
 
-        self.assertEqual(status, {"state": "error", "message": "SMB mount failed"})
+        self.assertEqual(
+            status,
+            {"state": "error", "message": "SMB mount failed", "authentication": "guest"},
+        )
 
     def test_mount_failure_classifies_safe_actionable_errors(self):
         cases = (
@@ -90,7 +95,20 @@ class ShareManagerTests(unittest.TestCase):
                     "Result", (), {"returncode": 32, "stderr": stderr}
                 )()
                 status = ShareManager(runner=runner, env={}).apply({"host": "nas", "share": "Music"})
-                self.assertEqual({"state": "error", "message": expected}, status)
+                self.assertEqual({"state": "error", "message": expected, "authentication": "guest"}, status)
+
+    def test_permission_failure_reports_credential_authentication_without_exposing_username(self):
+        runner = lambda command, **kwargs: type(
+            "Result", (), {"returncode": 32, "stderr": "mount error(13): Permission denied"}
+        )()
+        status = ShareManager(
+            runner=runner,
+            env={"SMB_USERNAME": "alice", "SMB_PASSWORD": "secret"},
+        ).apply({"host": "nas", "share": "Music"})
+
+        self.assertEqual("credentials", status["authentication"])
+        self.assertEqual("SMB server rejected the configured credentials", status["message"])
+        self.assertNotIn("alice", repr(status))
 
     def test_runner_exception_reports_sanitized_error_status(self):
         def run(command, **kwargs):
