@@ -1,5 +1,5 @@
 const API = "/api";
-const DEFAULT_PAGE_SIZE = 24;
+const DEFAULT_PAGE_SIZE = 21;
 const CATALOG_ALPHABET = [..."АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"];
 
 const routes = [
@@ -112,7 +112,7 @@ function pageSize() { return state.catalogPageSize || DEFAULT_PAGE_SIZE; }
 async function ensureCatalogPageSize() {
   if (state.catalogPageSizeLoaded) return;
   const settings = await request("/settings").catch(() => ({}));
-  state.catalogPageSize = [12, 18, 24, 30, 36, 48].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
+  state.catalogPageSize = [7, 14, 21, 28, 35, 42, 49].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
   state.catalogPageSizeLoaded = true;
 }
 function coverUrl(item) { return item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : ""); }
@@ -410,7 +410,7 @@ function serviceHeading(title, tone, statusText) {
 }
 async function renderSettings() {
   const settings = await request("/settings");
-  state.catalogPageSize = [12, 18, 24, 30, 36, 48].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
+  state.catalogPageSize = [7, 14, 21, 28, 35, 42, 49].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
   state.catalogPageSizeLoaded = true;
   const share = await request("/share/status").catch(() => ({ state: "error" }));
   const player = await request("/player/status").catch(() => ({ online: false }));
@@ -421,7 +421,7 @@ async function renderSettings() {
   const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [serviceHeading("Сетевая папка SMB", smbTone, `SMB: ${share.state === "connected" ? "подключено" : share.state === "not_configured" ? "не настроено" : "оффлайн"}`), element("p", { text: `Статус: ${share.state || "не настроено"} · Авторизация: ${authentication}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
   const mpd = element("form", { class: "settings-card", dataset: { form: "mpd" } }, [serviceHeading("MPD", mpdTone, `MPD: ${player.online ? "подключён" : mpdTone === "red" ? "не настроен" : "оффлайн"}`), element("p", { text: "Пароль, если нужен, задаётся только переменной MPD_PASSWORD." }), element("div", { class: "field-grid" }, [field("mpd_host", "Host", settings.mpd_host || "host.docker.internal"), field("mpd_port", "Port", settings.mpd_port || "6600", "number"), field("mpd_uri_prefix", "URI-префикс", settings.mpd_uri_prefix)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить и проверить", type: "submit" })])]);
   const counters = scan.counters || {}; const progress = scan.state === "running" ? Math.min(95, (counters.discovered || 0) ? 55 + (counters.indexed || 0) / counters.discovered * 40 : 15) : scan.state === "completed" ? 100 : 0;
-  const appearance = element("form", { class: "settings-card", dataset: { form: "appearance" } }, [element("h2", { text: "Отображение" }), element("p", { text: "Количество карточек на одной странице разделов «Альбомы» и «Исполнители»." }), element("div", { class: "field-grid" }, [selectField("catalog_page_size", "Обложек на странице", String(state.catalogPageSize), [12, 18, 24, 30, 36, 48])]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить", type: "submit" })])]);
+  const appearance = element("form", { class: "settings-card", dataset: { form: "appearance" } }, [element("h2", { text: "Отображение" }), element("p", { text: "Количество карточек на одной странице разделов «Альбомы» и «Исполнители»." }), element("div", { class: "field-grid" }, [selectField("catalog_page_size", "Обложек на странице", String(state.catalogPageSize), [7, 14, 21, 28, 35, 42, 49])]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить", type: "submit" })])]);
   const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${scan.state || "не запускалось"}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: scan.state === "running" ? "primary is-busy" : "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan", ...(scan.state === "running" ? { busy: "true" } : {}) }, attrs: { type: "button", ...(scan.state === "running" ? { "aria-busy": "true", "aria-disabled": "true" } : {}) } })]);
   replace(dom.content, element("div", { class: "settings-grid" }, [smb, mpd, appearance, scanner]));
   clearTimeout(renderSettings.pollTimer);

@@ -176,6 +176,13 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 catalog.update_settings({"invented": "value"})
             self.assertEqual(catalog.get_settings(), {"mpd_host": "novin", "mpd_port": "6600"})
+
+    def test_catalog_page_size_accepts_only_multiples_of_seven(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Catalog(Path(directory) / "catalog.sqlite3")
+            self.assertEqual(catalog.update_settings({"catalog_page_size": "28"})["catalog_page_size"], "28")
+            with self.assertRaises(ValidationError):
+                catalog.update_settings({"catalog_page_size": "24"})
             catalog.close()
 
 

@@ -496,8 +496,8 @@ class Catalog:
             raise ValidationError("unknown or secret setting keys are not allowed", {"keys": sorted(invalid)})
         if any(not isinstance(value, str) for value in mapping.values()):
             raise ValidationError("setting values must be strings", {"field": "settings"})
-        if "catalog_page_size" in mapping and mapping["catalog_page_size"] not in {"12", "18", "24", "30", "36", "48"}:
-            raise ValidationError("catalog_page_size must be one of 12, 18, 24, 30, 36 or 48", {"field": "catalog_page_size"})
+        if "catalog_page_size" in mapping and mapping["catalog_page_size"] not in {"7", "14", "21", "28", "35", "42", "49"}:
+            raise ValidationError("catalog_page_size must be a multiple of 7 between 7 and 49", {"field": "catalog_page_size"})
         with self._lock, self._connection:
             for key, value in mapping.items():
                 self._connection.execute(
