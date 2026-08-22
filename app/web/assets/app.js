@@ -338,6 +338,12 @@ async function redrawCurrent() {
   else if (state.route === "songs") await renderSongs(false); else if (state.route === "favorites") await renderSongs(true); else await render();
 }
 async function play(ids, shuffle = false) { try { await request("/player/play", { method: "POST", body: JSON.stringify({ track_ids: ids.map(Number), shuffle }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
+async function playFromTrack(id) {
+  const trackId = Number(id);
+  if (state.selected?.type !== "album") return play([trackId]);
+  const index = state.tracks.findIndex((track) => track.id === trackId);
+  return play((index < 0 ? [trackId] : state.tracks.slice(index).map((track) => track.id)));
+}
 async function command(name, params = {}) { try { await request("/player/command", { method: "POST", body: JSON.stringify({ command: name, params }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
 
 function openPlaylistDialog(mode, data = {}) { dom.dialog.dataset.mode = mode; dom.dialog.dataset.id = data.id || ""; dom.dialogTitle.textContent = mode === "rename" ? "Переименовать плейлист" : "Новый плейлист"; dom.playlistName.value = data.name || ""; dom.dialog.showModal(); dom.playlistName.focus(); }
@@ -354,7 +360,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
-  else if (action === "play-one") await play([button.dataset.id]);
+  else if (action === "play-one") await playFromTrack(button.dataset.id);
   else if (action === "play-list" || action === "shuffle-list") await play(button.dataset.ids.split(","), action === "shuffle-list");
   else if (action === "create-playlist") openPlaylistDialog("create");
   else if (action === "rename-playlist") openPlaylistDialog("rename", button.dataset);

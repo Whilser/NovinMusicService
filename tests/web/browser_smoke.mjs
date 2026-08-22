@@ -124,6 +124,10 @@ try {
     const row = document.querySelector(".track-row.compact"); const actions = row?.querySelector(".reorder");
     return Boolean(row && actions && Math.abs(row.getBoundingClientRect().top - actions.getBoundingClientRect().top) < 18);
   }), true);
+  await desktop.locator('[data-track-id="3"]').getByRole("button", { name: "Воспроизвести" }).click();
+  await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 1);
+  assert.deepEqual(requests.at(-1).body, { track_ids: [3, 2], shuffle: false });
+  requests.splice(0);
   await desktop.getByRole("button", { name: "Назад к списку: альбомы" }).click();
   await waitForRoute(desktop, "#/albums", "Альбомы", '[data-action="select-group"][data-type="album"]');
   await desktop.goto(`${origin}/#/songs`);
