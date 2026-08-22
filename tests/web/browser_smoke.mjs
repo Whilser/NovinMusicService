@@ -139,6 +139,8 @@ try {
     await waitForRoute(desktop, `#/${route}`, ...routeReadiness[route]);
     assert.equal(new URL(await desktop.url()).hash, `#/${route}`);
   }
+  assert.equal(await desktop.getByRole("status", { name: "SMB: не настроено" }).count(), 1);
+  assert.equal(await desktop.getByRole("status", { name: "MPD: не настроен" }).count(), 1);
   await desktop.goto(`${origin}/#/artists?name=Artist+A`);
   await waitForRoute(desktop, "#/artists?name=Artist+A", "Artist A", '[data-track-id="1"]');
   await desktop.reload();

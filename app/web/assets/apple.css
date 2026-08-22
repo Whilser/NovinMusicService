@@ -151,6 +151,11 @@ button svg, a svg { display: block; }
 
 .settings-grid { gap: 16px; }
 .settings-card { border-color: #e2e2e4; border-radius: 13px; background: #fafafa; box-shadow: none; }
+.service-heading { display: flex; align-items: center; gap: .6rem; }
+.service-status { width: .62rem; height: .62rem; flex: 0 0 .62rem; border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent); }
+.service-status--green { color: #22a55b; background: currentColor; }
+.service-status--yellow { color: #e6a817; background: currentColor; }
+.service-status--red { color: #ef3d51; background: currentColor; }
 .field-grid input { border-color: #d9d9dc; border-radius: 8px; }
 
 .empty, .error-state, .loading { min-height: 260px; border: 0; border-radius: 14px; background: #f7f7f8; }
