@@ -105,6 +105,13 @@ class Catalog:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS one_active_scan
                     ON scan_runs(status) WHERE status = 'running';
+                CREATE TABLE IF NOT EXISTS artist_images (
+                    artist TEXT PRIMARY KEY COLLATE NOCASE,
+                    cover_id TEXT,
+                    status TEXT NOT NULL CHECK (status IN ('ready','missing')),
+                    source TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
                 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
                 """
             )
@@ -249,7 +256,35 @@ class Catalog:
         return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
 
     def list_artists(self, page: int = 1, page_size: int = 50) -> dict[str, Any]:
-        return self._list_groups("artist", page, page_size)
+        limit, offset = self._page(page, page_size)
+        total = self._connection.execute(
+            "SELECT COUNT(DISTINCT artist) FROM tracks WHERE artist<>''"
+        ).fetchone()[0]
+        rows = self._connection.execute(
+            """SELECT t.artist AS name,COUNT(*) AS track_count,COALESCE(SUM(t.duration),0) AS duration,
+                       image.cover_id AS artist_cover_id
+                FROM tracks t LEFT JOIN artist_images image ON image.artist=t.artist AND image.status='ready'
+                WHERE t.artist<>'' GROUP BY t.artist
+                ORDER BY t.artist COLLATE NOCASE LIMIT ? OFFSET ?""", (limit, offset)
+        ).fetchall()
+        return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
+
+    def artist_image(self, artist: str) -> Optional[dict[str, Any]]:
+        row = self._connection.execute(
+            "SELECT artist,cover_id,status,source FROM artist_images WHERE artist=? COLLATE NOCASE", (artist,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def save_artist_image(self, artist: str, cover_id: Optional[str], status: str, source: str = "") -> None:
+        if status not in {"ready", "missing"}:
+            raise ValidationError("invalid artist image status", {"status": status})
+        with self._lock, self._connection:
+            self._connection.execute(
+                """INSERT INTO artist_images(artist,cover_id,status,source) VALUES (?,?,?,?)
+                   ON CONFLICT(artist) DO UPDATE SET cover_id=excluded.cover_id,status=excluded.status,
+                   source=excluded.source,updated_at=CURRENT_TIMESTAMP""",
+                (artist, cover_id, status, source),
+            )
 
     def set_preference(self, track_id: int, rating: Optional[int] = None,
                        favorite: Optional[bool] = None) -> dict[str, Any]:

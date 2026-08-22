@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
+from app.artist_images import ArtistImageResolver
 from app.catalog import Catalog
 from app.dependencies import get_catalog
 
@@ -58,8 +59,36 @@ def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50
 
 @router.get("/artists")
 def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
-            catalog: Catalog = Depends(get_catalog)) -> dict:
-    return catalog.list_artists(page=page, page_size=page_size)
+           catalog: Catalog = Depends(get_catalog)) -> dict:
+    result = catalog.list_artists(page=page, page_size=page_size)
+    for item in result["items"]:
+        cover_id = item.pop("artist_cover_id", None)
+        if cover_id:
+            item["cover_url"] = f"/api/covers/{cover_id}"
+    return result
+
+
+def get_artist_image_resolver(request: Request, catalog: Catalog = Depends(get_catalog)) -> ArtistImageResolver:
+    resolver = getattr(request.app.state, "artist_image_resolver", None)
+    if resolver is None or resolver.catalog is not catalog:
+        resolver = ArtistImageResolver(catalog, request.app.state.cover_dir)
+        request.app.state.artist_image_resolver = resolver
+    return resolver
+
+
+@router.get("/artists/image")
+def artist_image(
+    name: str = Query(min_length=1, max_length=160),
+    resolver: ArtistImageResolver = Depends(get_artist_image_resolver),
+) -> Response:
+    image = resolver.resolve(name)
+    if image is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "public, max-age=86400"})
+    payload, mime_type, cover_id = image
+    return Response(
+        content=payload, media_type=mime_type,
+        headers={"ETag": f'"{cover_id}"', "Cache-Control": "public, max-age=2592000"},
+    )
 
 
 @router.get("/playlists")

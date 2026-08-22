@@ -165,14 +165,36 @@ function cover(item, className = "cover") {
   const url = coverUrl(item);
   if (url) box.append(element("img", { src: url, alt: "", loading: "lazy" }));
   else box.append(element("span", { class: "cover-placeholder", attrs: { "aria-hidden": "true" } }, [icon("music", className === "row-cover" ? 20 : 42)]));
+  if (!url && item.artist_image) queueArtistImage(box, item.artist_image);
   return box;
+}
+
+const artistImageQueue = [];
+let artistImageRequests = 0;
+function queueArtistImage(box, artist) {
+  artistImageQueue.push(async () => {
+    try {
+      const response = await fetch(`${API}/artists/image?${new URLSearchParams({ name: artist })}`);
+      if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) return;
+      const image = element("img", { src: URL.createObjectURL(await response.blob()), alt: "", loading: "lazy" });
+      box.replaceChildren(image);
+    } catch (_) { /* The placeholder remains when Wikimedia is unavailable. */ }
+  });
+  runArtistImageQueue();
+}
+function runArtistImageQueue() {
+  while (artistImageRequests < 2 && artistImageQueue.length) {
+    artistImageRequests += 1;
+    artistImageQueue.shift()().finally(() => { artistImageRequests -= 1; runArtistImageQueue(); });
+  }
 }
 
 function albumCard(item, type = "album") {
   const name = item.name || item.album || "Без названия";
   const albumArtist = item.album_artist || "";
+  const cardItem = type === "artist" ? { ...item, artist_image: item.name } : item;
   return element("article", { class: "card" }, [
-    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(item)]),
+    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem)]),
     element("h3", { text: name }), element("p", { text: item.artist || item.album_artist || `${item.track_count || 0} треков` })
   ]);
 }
