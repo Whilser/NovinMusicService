@@ -262,7 +262,10 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
     ])
   ]);
   const back = element("button", { class: "detail-back", dataset: { action: "back-group", route: listRoute }, attrs: { type: "button", "aria-label": `Назад к списку: ${listRoute === "albums" ? "альбомы" : "исполнители"}` } }, [icon("back", 26)]);
-  replace(dom.content, element("div", { class: "detail-toolbar" }, [back]), detail, items.length ? trackList(items, { compact: true }) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
+  const topbar = dom.title.closest(".topbar");
+  topbar.classList.add("has-detail-back");
+  topbar.insertBefore(back, dom.title.parentElement);
+  replace(dom.content, detail, items.length ? trackList(items, { compact: true }) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
 }
 
 async function renderPlaylists() {
@@ -302,7 +305,7 @@ async function renderSettings() {
 }
 
 async function render() {
-  loading(); dom.title.textContent = routes.find(([id]) => id === state.route)?.[1] || "Медиатека"; dom.search.hidden = state.route === "settings"; dom.content.setAttribute("aria-busy", "true");
+  loading(); const topbar = dom.title.closest(".topbar"); topbar.querySelector(".detail-back")?.remove(); topbar.classList.remove("has-detail-back"); dom.title.textContent = routes.find(([id]) => id === state.route)?.[1] || "Медиатека"; dom.search.hidden = state.route === "settings"; dom.content.setAttribute("aria-busy", "true");
   buildNavigation(document.querySelector("#sidebar-nav"), routes); buildNavigation(document.querySelector("#mobile-nav"), mobileRoutes);
   try {
     if (state.route === "home") await renderHome();
