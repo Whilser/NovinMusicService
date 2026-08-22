@@ -123,7 +123,7 @@ try {
   assert.equal(await desktop.getByText(hostile, { exact: true }).count(), 1);
   assert.notEqual(await desktop.evaluate(() => window.hacked), true);
   assert.equal(await desktop.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  assert.match(await desktop.locator("link[href='/assets/styles.css']").evaluate((node) => getComputedStyle(document.documentElement).getPropertyValue("--accent")), /e9344b/);
+  assert.match(await desktop.locator("link[href='/assets/styles.css']").evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent")), /fa2d48/);
 
   const routeReadiness = {
     home: ["Главная", ".section-heading h2"],
@@ -226,7 +226,7 @@ try {
   assert.equal(await mobile.locator("#player").getByLabel("Пауза").isDisabled(), false);
   assert.equal(await mobile.locator("#player-cover img[src='/api/covers/cover-a']").count(), 1);
   await mobile.locator('[data-track-id="3"]').getByRole("button", { name: "Воспроизвести" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 1);
-  await mobile.getByRole("button", { name: "▶ Слушать" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 2);
+  await mobile.getByRole("button", { name: "Воспроизвести все" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 2);
   await mobile.getByRole("button", { name: "Перемешать" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 3);
   await mobile.locator("#player").getByRole("button", { name: "Предыдущий трек" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 1);
   await mobile.locator("#player").getByRole("button", { name: "Следующий трек" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 2);

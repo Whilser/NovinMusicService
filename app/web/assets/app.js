@@ -2,10 +2,10 @@ const API = "/api";
 const PAGE_SIZE = 24;
 
 const routes = [
-  ["home", "Главная", "⌂"], ["albums", "Альбомы", "▦"],
-  ["artists", "Исполнители", "♙"], ["songs", "Песни", "♫"],
-  ["playlists", "Плейлисты", "≡"], ["favorites", "Избранное", "♥"],
-  ["settings", "Настройки", "⚙"]
+  ["home", "Главная", "home"], ["albums", "Альбомы", "albums"],
+  ["artists", "Исполнители", "artists"], ["songs", "Песни", "music"],
+  ["playlists", "Плейлисты", "playlist"], ["favorites", "Избранное", "heart"],
+  ["settings", "Настройки", "settings"]
 ];
 const mobileRoutes = routes;
 const initialLocation = locationFromHash();
@@ -37,7 +37,42 @@ function element(tag, options = {}, children = []) {
 }
 
 function replace(target, ...children) { target.replaceChildren(...children.flat().filter(Boolean)); }
-function iconButton(label, text, action, data = {}) { return element("button", { class: "icon-button", text, dataset: { action, ...data }, attrs: { type: "button", "aria-label": label } }); }
+const ICON_PATHS = {
+  home: [["path", { d: "M3 10.5 12 3l9 7.5" }], ["path", { d: "M5 9.5V21h14V9.5M9 21v-7h6v7" }]],
+  albums: [["rect", { x: "4", y: "3", width: "16", height: "18", rx: "2.5" }], ["path", { d: "M8 8h8M8 12h8M8 16h5" }]],
+  artists: [["circle", { cx: "12", cy: "8", r: "4" }], ["path", { d: "M4.5 21c.7-4.2 3.2-6.3 7.5-6.3s6.8 2.1 7.5 6.3" }]],
+  music: [["path", { d: "M9 18V5l10-2v13" }], ["circle", { cx: "6", cy: "18", r: "3" }], ["circle", { cx: "16", cy: "16", r: "3" }]],
+  playlist: [["path", { d: "M4 6h10M4 11h10M4 16h7M18 13v7" }], ["circle", { cx: "15.5", cy: "20", r: "2.5" }]],
+  heart: [["path", { d: "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" }]],
+  settings: [["path", { d: "M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5" }], ["circle", { cx: "16", cy: "6", r: "2" }], ["circle", { cx: "8", cy: "12", r: "2" }], ["circle", { cx: "13", cy: "18", r: "2" }]],
+  search: [["circle", { cx: "10.5", cy: "10.5", r: "6.5" }], ["path", { d: "m16 16 4.5 4.5" }]],
+  play: [["path", { d: "m8 5 11 7-11 7Z", fill: "currentColor", stroke: "none" }]],
+  pause: [["path", { d: "M9 5v14M15 5v14", "stroke-width": "3" }]],
+  previous: [["path", { d: "M6 5v14M19 6l-10 6 10 6Z", fill: "currentColor", stroke: "none" }]],
+  next: [["path", { d: "M18 5v14M5 6l10 6-10 6Z", fill: "currentColor", stroke: "none" }]],
+  shuffle: [["path", { d: "M16 3h5v5M4 6h3c5 0 5 12 10 12h4M18 16l3 2-3 3M4 18h3c2.2 0 3.5-2.3 4.7-4.8M14 6.8C15 6.3 16 6 17 6h4" }]],
+  volume: [["path", { d: "M11 5 6.5 9H3v6h3.5L11 19ZM15 9a5 5 0 0 1 0 6M17.5 6.5a8.5 8.5 0 0 1 0 11" }]],
+  plus: [["path", { d: "M12 5v14M5 12h14" }]],
+  close: [["path", { d: "m6 6 12 12M18 6 6 18" }]],
+  up: [["path", { d: "m6 15 6-6 6 6" }]],
+  down: [["path", { d: "m6 9 6 6 6-6" }]],
+  star: [["path", { d: "m12 3 2.8 5.8 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.7l6.2-.9Z" }]],
+  more: [["circle", { cx: "5", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }], ["circle", { cx: "12", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }], ["circle", { cx: "19", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }]]
+};
+function icon(name, size = 18, filled = false) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", width: size, height: size, fill: filled ? "currentColor" : "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" })) svg.setAttribute(key, String(value));
+  for (const [tag, attrs] of ICON_PATHS[name] || ICON_PATHS.music) { const part = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [key, value] of Object.entries(attrs)) part.setAttribute(key, value); svg.append(part); }
+  return svg;
+}
+function labeledIcon(name, label) { return [icon(name), element("span", { text: label })]; }
+function iconButton(label, iconName, action, data = {}, active = false) { return element("button", { class: `icon-button${active ? " active" : ""}`, dataset: { action, ...data }, attrs: { type: "button", "aria-label": label } }, [icon(iconName, 18, active && iconName === "heart")]); }
+replace(document.querySelector(".brand-mark"), icon("music", 18));
+replace(document.querySelector(".search > span[aria-hidden]"), icon("search", 17));
+replace(document.querySelector('[data-command="previous"]'), icon("previous", 18));
+replace(document.querySelector('[data-command="next"]'), icon("next", 18));
+replace(document.querySelector('[data-command="play"]'), icon("play", 17));
+replace(document.querySelector(".volume > span[aria-hidden]"), icon("volume", 18));
 async function withButtonBusy(button, operation) {
   if (!button || button.dataset.busy === "true") return;
   const wasDisabled = button.disabled;
@@ -97,14 +132,21 @@ async function fetchAllGroups(type) {
 }
 
 function buildNavigation(target, items) {
-  replace(target, ...items.map(([id, label, icon]) => element("a", {
-    class: "nav-item", href: routePath(id), dataset: { route: id }, attrs: state.route === id ? { "aria-current": "page" } : {}
-  }, [element("span", { class: "nav-icon", text: icon, attrs: { "aria-hidden": "true" } }), element("span", { text: label })])));
+  const children = [];
+  for (const [id, label, iconName] of items) {
+    if (target.id === "sidebar-nav" && id === "home") children.push(element("p", { class: "nav-section-label", text: "Медиатека" }));
+    if (target.id === "sidebar-nav" && id === "playlists") children.push(element("p", { class: "nav-section-label", text: "Коллекция" }));
+    if (target.id === "sidebar-nav" && id === "settings") children.push(element("p", { class: "nav-section-label", text: "Сервис" }));
+    children.push(element("a", {
+      class: "nav-item", href: routePath(id), dataset: { route: id }, attrs: state.route === id ? { "aria-current": "page" } : {}
+    }, [element("span", { class: "nav-icon", attrs: { "aria-hidden": "true" } }, [icon(iconName, 18)]), element("span", { text: label })]));
+  }
+  replace(target, children);
 }
 
 function loading() { replace(dom.content, element("div", { class: "loading" }, [element("div", { class: "skeleton", attrs: { "aria-label": "Загрузка" } })])); dom.content.setAttribute("aria-busy", "true"); }
 function empty(title, text, action) {
-  const children = [element("div", { class: "empty-icon", text: "♫", attrs: { "aria-hidden": "true" } }), element("h2", { text: title }), element("p", { text })];
+  const children = [element("div", { class: "empty-icon", attrs: { "aria-hidden": "true" } }, [icon("music", 44)]), element("h2", { text: title }), element("p", { text })];
   if (action) children.push(element("a", { class: "primary", text: action.label, href: action.href, dataset: { route: action.route } }));
   return element("div", { class: "empty" }, children);
 }
@@ -117,7 +159,7 @@ function cover(item, className = "cover") {
   const box = element("div", { class: className });
   const url = coverUrl(item);
   if (url) box.append(element("img", { src: url, alt: "", loading: "lazy" }));
-  else box.append(element("span", { class: "cover-placeholder", text: "♪", attrs: { "aria-hidden": "true" } }));
+  else box.append(element("span", { class: "cover-placeholder", attrs: { "aria-hidden": "true" } }, [icon("music", className === "row-cover" ? 20 : 42)]));
   return box;
 }
 
@@ -131,27 +173,26 @@ function albumCard(item, type = "album") {
 }
 
 function trackRow(track, options = {}) {
-  const row = element("article", { class: "track-row", dataset: { trackId: String(track.id) } });
+  const row = element("article", { class: `track-row${options.compact ? " compact" : ""}`, dataset: { trackId: String(track.id) } });
   const image = cover(track, "row-cover");
   const info = element("div", { class: "track-title" }, [element("strong", { text: track.title || "Без названия" }), element("span", { text: track.artist || "Неизвестный исполнитель" })]);
   row.append(image, info, element("span", { class: "track-album", text: track.album || "Неизвестный альбом" }));
   const rating = element("div", { class: "rating", attrs: { "aria-label": `Оценка ${track.title}` } });
-  for (let value = 1; value <= 5; value += 1) rating.append(element("button", { class: value <= (track.rating || 0) ? "active" : "", text: "★", dataset: { action: "rate", value: String(value), id: String(track.id) }, attrs: { type: "button", "aria-label": `${value} из 5` } }));
-  row.append(rating, iconButton(track.favorite ? "Убрать из избранного" : "Добавить в избранное", track.favorite ? "♥" : "♡", "favorite", { id: String(track.id), active: String(!track.favorite) }));
-  row.lastChild.classList.toggle("active", Boolean(track.favorite));
-  const actions = element("div", { class: "reorder" }, [iconButton("Воспроизвести", "▶", "play-one", { id: String(track.id) })]);
+  for (let value = 1; value <= 5; value += 1) rating.append(element("button", { class: value <= (track.rating || 0) ? "active" : "", dataset: { action: "rate", value: String(value), id: String(track.id) }, attrs: { type: "button", "aria-label": `${value} из 5` } }, [icon("star", 14, value <= (track.rating || 0))]));
+  row.append(rating, iconButton(track.favorite ? "Убрать из избранного" : "Добавить в избранное", "heart", "favorite", { id: String(track.id), active: String(!track.favorite) }, Boolean(track.favorite)));
+  const actions = element("div", { class: "reorder" }, [iconButton("Воспроизвести", "play", "play-one", { id: String(track.id) })]);
   if (options.playlistId) {
-    actions.append(iconButton("Выше", "↑", "move-track", { id: String(track.id), direction: "up" }), iconButton("Ниже", "↓", "move-track", { id: String(track.id), direction: "down" }), iconButton("Удалить из плейлиста", "×", "remove-track", { id: String(track.id), playlistId: String(options.playlistId) }));
-  } else actions.append(iconButton("Добавить в плейлист", "+", "add-to-playlist", { id: String(track.id) }));
+    actions.append(iconButton("Выше", "up", "move-track", { id: String(track.id), direction: "up" }), iconButton("Ниже", "down", "move-track", { id: String(track.id), direction: "down" }), iconButton("Удалить из плейлиста", "close", "remove-track", { id: String(track.id), playlistId: String(options.playlistId) }));
+  } else actions.append(iconButton("Добавить в плейлист", "plus", "add-to-playlist", { id: String(track.id) }));
   row.append(actions);
   return row;
 }
 
-function trackList(items, options = {}) { return element("div", { class: "track-list" }, items.map((track) => trackRow(track, options))); }
+function trackList(items, options = {}) { return element("div", { class: `track-list${options.compact ? " compact" : ""}` }, items.map((track) => trackRow(track, options))); }
 function playButtons(items) {
   if (!items.length) return [];
   const ids = items.map((item) => item.id).join(",");
-  return [element("button", { text: "▶ Слушать", dataset: { action: "play-list", ids }, attrs: { type: "button" } }), element("button", { class: "secondary", text: "Перемешать", dataset: { action: "shuffle-list", ids }, attrs: { type: "button" } })];
+  return [element("button", { class: "media-action", dataset: { action: "play-list", ids }, attrs: { type: "button", "aria-label": "Воспроизвести все" } }, labeledIcon("play", "Воспроизвести")), element("button", { class: "secondary media-action", dataset: { action: "shuffle-list", ids }, attrs: { type: "button" } }, labeledIcon("shuffle", "Перемешать"))];
 }
 function pagination(total) {
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -205,7 +246,19 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
   const items = allMatches.filter((item) => item[key] === name && (type !== "album" || (item.album_artist || item.artist || "") === albumArtist));
   state.tracks = items; state.selected = { type, name, albumArtist };
   dom.title.textContent = name;
-  replace(dom.content, element("div", { class: "page-actions" }, playButtons(items)), items.length ? trackList(items) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
+  const representative = items[0] || { album: name, artist: albumArtist };
+  const subtitle = type === "album" ? (albumArtist || representative.artist || "Неизвестный исполнитель") : "Исполнитель";
+  const detail = element("section", { class: "detail-hero" }, [
+    cover(representative, "detail-cover"),
+    element("div", { class: "detail-copy" }, [
+      element("p", { class: "detail-kind", text: type === "album" ? "Альбом" : "Исполнитель" }),
+      element("h2", { text: name }),
+      element("p", { class: "detail-artist", text: subtitle }),
+      element("p", { class: "detail-meta", text: `${items.length} ${items.length === 1 ? "песня" : "песен"}` }),
+      element("div", { class: "detail-actions" }, playButtons(items))
+    ])
+  ]);
+  replace(dom.content, detail, items.length ? trackList(items, { compact: true }) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
 }
 
 async function renderPlaylists() {
@@ -328,8 +381,8 @@ async function updatePlayer(player) {
   const song = player?.song; dom.playerTitle.textContent = song?.title || song?.file || "Ничего не играет"; dom.playerArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
   const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0); dom.elapsed.textContent = formatTime(elapsed); dom.duration.textContent = formatTime(duration); dom.seek.max = String(Math.max(1, duration)); dom.seek.value = String(Math.min(elapsed, duration || 1)); dom.volume.value = String(Number(player?.volume || 0));
   for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { const disabled = !online || control.dataset.busy === "true"; control.disabled = disabled; control.setAttribute("aria-disabled", String(disabled)); }
-  const toggle = document.querySelector(".play-toggle"); toggle.textContent = player?.state === "play" ? "Ⅱ" : "▶"; toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
-  replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.textContent = "♪";
+  const toggle = document.querySelector(".play-toggle"); replace(toggle, icon(player?.state === "play" ? "pause" : "play", 17)); toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
+  replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.append(icon("music", 20));
 }
 async function pollPlayer() { try { await updatePlayer(await request("/player/status")); } catch { await updatePlayer({ online: false }); } }
 
