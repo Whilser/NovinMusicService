@@ -13,6 +13,7 @@
 - Frontend не требует сборки: это статические HTML/CSS/ES-модули.
 - Docker CLI в текущей среде отсутствовал, поэтому здесь не проверены: `cp .env.example .env && docker compose up -d --build`.
 - Docker-диагностика и backup описаны в `README.md`; не запускай `docker compose down -v`, если нужен каталог.
+- После успешных тестов каждой законченной задачи автоматически синхронизируй checkout на `novin:/home/whilser/NovinMusicService`, не перезаписывая серверный `.env`, затем выполняй `docker compose up -d --build --force-recreate` и проверяй health, UI, MPD и SMB status.
 
 ## Структура
 
