@@ -4,8 +4,8 @@ set -eu
 
 APP_DIR=/home/whilser/NovinMusicService
 ENV_FILE="$APP_DIR/.env"
-MPD_CONFIG=/etc/mpd.conf
-MOUNT_POINT=/mnt/novin-music
+MPD_MUSIC_DIRECTORY=/var/lib/mpd/music
+MOUNT_POINT="$MPD_MUSIC_DIRECTORY/NAS"
 CREDENTIALS_FILE=/etc/novin-mpd-smb.credentials
 HOST=${1:?Usage: sudo $0 <nas-host> <share>}
 SHARE=${2:?Usage: sudo $0 <nas-host> <share>}
@@ -43,14 +43,6 @@ if mountpoint -q "$MOUNT_POINT"; then
 fi
 mount "$MOUNT_POINT"
 
-BACKUP="$MPD_CONFIG.novin-music.$(date +%Y%m%d%H%M%S).bak"
-cp "$MPD_CONFIG" "$BACKUP"
-if grep -q '^[[:space:]]*music_directory[[:space:]]' "$MPD_CONFIG"; then
-  sed -i 's|^[[:space:]]*music_directory[[:space:]].*$|music_directory "/mnt/novin-music"|' "$MPD_CONFIG"
-else
-  printf '\nmusic_directory "/mnt/novin-music"\n' >> "$MPD_CONFIG"
-fi
-
-systemctl restart mpd
 mpc update
-echo "MPD now uses $MOUNT_POINT. Backup: $BACKUP"
+echo "NAS is available to MPD at $MOUNT_POINT. Existing MPD library and playlists are unchanged."
+echo "Set MPD URI prefix to NAS in Novin Music settings."
