@@ -376,9 +376,7 @@ dom.volume.addEventListener("change", () => command("volume", { volume: Number(d
 async function resolvePlayerTrack(song) {
   if (!song) return null;
   if (!state.catalogTracks.length) state.catalogTracks = await fetchAllTracks();
-  const songId = Number(song.id || song.track_id || 0);
-  return state.catalogTracks.find((track) => songId && track.id === songId)
-    || state.catalogTracks.find((track) => track.path === song.file)
+  return state.catalogTracks.find((track) => track.path === song.file)
     || state.catalogTracks.find((track) => song.file && song.file.endsWith(`/${track.path}`))
     || null;
 }

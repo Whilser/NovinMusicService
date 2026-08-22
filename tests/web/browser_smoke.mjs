@@ -222,7 +222,7 @@ try {
   assert.equal(await mobile.getByLabel("Громкость").isVisible(), true);
   assert.equal(await mobile.locator("#player").getByLabel("Воспроизвести").isDisabled(), true);
   assert.equal(await mobile.getByLabel("Позиция воспроизведения").getAttribute("aria-disabled"), "true");
-  player = { online: true, state: "play", elapsed: 12, duration: 180, volume: 35, song: { file: "new.flac", title: hostile, artist: "Artist A" } };
+  player = { online: true, state: "play", elapsed: 12, duration: 180, volume: 35, song: { id: 1, file: "new.flac", title: hostile, artist: "Artist A" } };
   await mobile.waitForFunction(() => !document.querySelector('#player [data-command="pause"]')?.disabled && Boolean(document.querySelector("#player-cover img[src='/api/covers/cover-a']")));
   assert.equal(await mobile.locator("#player").getByLabel("Пауза").isDisabled(), false);
   assert.equal(await mobile.locator("#player-cover img[src='/api/covers/cover-a']").count(), 1);
