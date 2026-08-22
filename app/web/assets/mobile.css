@@ -1,0 +1,19 @@
+@media (max-width:800px) {
+  :root { --player: 112px; }
+  .mobile-nav { grid-template-columns: repeat(7, 1fr); }
+  .mobile-nav .nav-item { min-width: 0; font-size: .58rem; }
+  .mobile-nav .nav-icon { width: auto; }
+  .player { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 54px 34px; height: var(--player); gap: 2px 12px; }
+  .player .timeline { display: grid; grid-column: 1; min-width: 0; }
+  .player .volume { display: flex; grid-column: 2; width: 92px; }
+  .player .status-pill { display: none; }
+  .track-row { grid-template-columns: 42px minmax(0, 1fr) auto auto auto; }
+  .track-row .rating { display: flex; }
+  .rating button { font-size: .7rem; }
+}
+
+@media (max-width:430px) {
+  .mobile-nav .nav-item span:last-child { font-size: .52rem; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .player .timeline { font-size: .62rem; }
+  .player .volume { width: 76px; }
+}

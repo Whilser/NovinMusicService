@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f5f7">
+  <title>Novin Music</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/mobile.css">
+</head>
+<body>
+  <a class="skip-link" href="#" data-skip-link>К содержимому</a>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" aria-label="Основная навигация">
+      <a class="brand" href="#/home" data-route="home" aria-label="Novin Music — главная">
+        <span class="brand-mark" aria-hidden="true">♪</span><span>Novin Music</span>
+      </a>
+      <nav id="sidebar-nav" class="nav-list"></nav>
+    </aside>
+    <main id="main" class="main" tabindex="-1">
+      <header class="topbar">
+        <div><p class="eyebrow">Медиатека</p><h1 id="page-title">Главная</h1></div>
+        <label class="search"><span class="sr-only">Поиск по медиатеке</span><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск" autocomplete="off"></label>
+      </header>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section id="content" class="content" aria-live="polite" aria-busy="true"></section>
+    </main>
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Мобильная навигация"></nav>
+    <section id="player" class="player offline" aria-label="Плеер">
+      <div class="now-playing"><div id="player-cover" class="mini-cover" aria-hidden="true">♪</div><div class="truncate"><strong id="player-title">Ничего не играет</strong><span id="player-artist">MPD offline</span></div></div>
+      <div class="transport"><button type="button" data-command="previous" aria-label="Предыдущий трек" disabled aria-disabled="true">‹</button><button type="button" class="play-toggle" data-command="play" aria-label="Воспроизвести" disabled aria-disabled="true">▶</button><button type="button" data-command="next" aria-label="Следующий трек" disabled aria-disabled="true">›</button></div>
+      <div class="timeline"><span id="elapsed">0:00</span><input id="seek" type="range" min="0" max="1" value="0" aria-label="Позиция воспроизведения" disabled aria-disabled="true"><span id="duration">0:00</span></div>
+      <label class="volume"><span aria-hidden="true">◖</span><span class="sr-only">Громкость</span><input id="volume" type="range" min="0" max="100" value="0" disabled aria-disabled="true"></label>
+      <span id="player-state" class="status-pill">Не в сети</span>
+    </section>
+  </div>
+  <dialog id="playlist-dialog"><form><h2 id="dialog-title">Новый плейлист</h2><label>Название<input id="playlist-name" required maxlength="120"></label><div class="dialog-actions"><button id="playlist-cancel" type="button" class="secondary">Отмена</button><button id="playlist-save" type="submit">Сохранить</button></div></form></dialog>
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>

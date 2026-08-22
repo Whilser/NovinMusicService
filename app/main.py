@@ -8,6 +8,8 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.catalog import router as catalog_router
 from app.catalog import Catalog, CatalogError, ConflictError, NotFoundError
@@ -61,6 +63,17 @@ def create_app(data_dir: Optional[Path] = None, music_root: Optional[Path] = Non
                 raise
         else:
             application.include_router(feature_module.router, prefix="/api")
+
+    web_root = Path(__file__).with_name("web")
+    application.mount("/assets", StaticFiles(directory=web_root / "assets"), name="web-assets")
+
+    @application.get("/", include_in_schema=False)
+    @application.get("/{spa_path:path}", include_in_schema=False)
+    def spa(spa_path: str = ""):
+        # API misses must remain JSON 404s instead of being disguised as HTML.
+        if spa_path == "api" or spa_path.startswith("api/"):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        return FileResponse(web_root / "index.html")
 
     @application.on_event("shutdown")
     def close_catalog() -> None:

@@ -1,0 +1,321 @@
+const API = "/api";
+const PAGE_SIZE = 24;
+
+const routes = [
+  ["home", "Главная", "⌂"], ["albums", "Альбомы", "▦"],
+  ["artists", "Исполнители", "♙"], ["songs", "Песни", "♫"],
+  ["playlists", "Плейлисты", "≡"], ["favorites", "Избранное", "♥"],
+  ["settings", "Настройки", "⚙"]
+];
+const mobileRoutes = routes;
+const initialLocation = locationFromHash();
+const state = { route: initialLocation.route, page: 1, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null };
+if (!location.hash) history.replaceState(null, "", "#/home");
+const dom = {
+  content: document.querySelector("#content"), title: document.querySelector("#page-title"),
+  search: document.querySelector("#search"), notice: document.querySelector("#notice"),
+  player: document.querySelector("#player"), playerTitle: document.querySelector("#player-title"),
+  playerArtist: document.querySelector("#player-artist"), playerCover: document.querySelector("#player-cover"),
+  playerState: document.querySelector("#player-state"), elapsed: document.querySelector("#elapsed"),
+  duration: document.querySelector("#duration"), seek: document.querySelector("#seek"),
+  volume: document.querySelector("#volume"), dialog: document.querySelector("#playlist-dialog"),
+  dialogTitle: document.querySelector("#dialog-title"), playlistName: document.querySelector("#playlist-name"),
+  playlistSave: document.querySelector("#playlist-save")
+};
+
+function element(tag, options = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(options)) {
+    if (key === "class") node.className = value;
+    else if (key === "text") node.textContent = value;
+    else if (key === "dataset") Object.assign(node.dataset, value);
+    else if (key === "attrs") for (const [name, attr] of Object.entries(value)) node.setAttribute(name, attr);
+    else node[key] = value;
+  }
+  for (const child of children.flat()) if (child) node.append(child);
+  return node;
+}
+
+function replace(target, ...children) { target.replaceChildren(...children.flat().filter(Boolean)); }
+function iconButton(label, text, action, data = {}) { return element("button", { class: "icon-button", text, dataset: { action, ...data }, attrs: { type: "button", "aria-label": label } }); }
+function locationFromHash() {
+  const raw = location.hash.replace(/^#\/?/, "");
+  const [path, queryString = ""] = raw.split("?");
+  const parts = path.split("/").filter(Boolean);
+  const route = routes.some(([id]) => id === parts[0]) ? parts[0] : "home";
+  const query = new URLSearchParams(queryString);
+  let selected = null;
+  if (route === "playlists" && /^\d+$/.test(parts[1] || "")) selected = { id: Number(parts[1]) };
+  if ((route === "albums" || route === "artists") && query.get("name")) selected = { type: route === "albums" ? "album" : "artist", name: query.get("name"), albumArtist: query.get("album_artist") || "" };
+  return { route, selected };
+}
+function routePath(route) { return `#/${route}`; }
+function selectedPath(type, name, albumArtist = "") { const query = new URLSearchParams({ name }); if (albumArtist) query.set("album_artist", albumArtist); return `#/${type === "album" ? "albums" : "artists"}?${query}`; }
+function formatTime(value) { const seconds = Math.max(0, Number(value) || 0); return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`; }
+function coverUrl(item) { return item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : ""); }
+function apiMessage(error) { return error?.error?.message || error?.message || "Не удалось выполнить запрос"; }
+
+async function request(path, options = {}) {
+  const response = await fetch(`${API}${path}`, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
+  if (response.status === 204) return null;
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(apiMessage(body));
+  return body;
+}
+
+async function fetchAllTracks({ search = "", favorite = "" } = {}) {
+  const items = [];
+  for (let offset = 0, total = 1; offset < total; offset += 200) {
+    const query = new URLSearchParams({ limit: "200", offset: String(offset), search });
+    if (favorite) query.set("favorite", favorite);
+    const page = await request(`/tracks?${query}`);
+    items.push(...page.items); total = page.total;
+  }
+  return items;
+}
+
+async function fetchAllGroups(type) {
+  const items = [];
+  for (let page = 1, total = 1; items.length < total; page += 1) {
+    const result = await request(`/${type}?page=${page}&page_size=200`);
+    items.push(...result.items); total = result.total;
+  }
+  return items;
+}
+
+function buildNavigation(target, items) {
+  replace(target, ...items.map(([id, label, icon]) => element("a", {
+    class: "nav-item", href: routePath(id), dataset: { route: id }, attrs: state.route === id ? { "aria-current": "page" } : {}
+  }, [element("span", { class: "nav-icon", text: icon, attrs: { "aria-hidden": "true" } }), element("span", { text: label })])));
+}
+
+function loading() { replace(dom.content, element("div", { class: "loading" }, [element("div", { class: "skeleton", attrs: { "aria-label": "Загрузка" } })])); dom.content.setAttribute("aria-busy", "true"); }
+function empty(title, text, action) {
+  const children = [element("div", { class: "empty-icon", text: "♫", attrs: { "aria-hidden": "true" } }), element("h2", { text: title }), element("p", { text })];
+  if (action) children.push(element("a", { class: "primary", text: action.label, href: action.href, dataset: { route: action.route } }));
+  return element("div", { class: "empty" }, children);
+}
+function errorView(error) { replace(dom.content, element("div", { class: "error-state" }, [element("h2", { text: "Не удалось загрузить" }), element("p", { text: apiMessage(error) }), element("button", { class: "primary", text: "Повторить", dataset: { action: "retry" }, attrs: { type: "button" } })])); }
+function actionError(error) { errorView(error); dom.content.setAttribute("aria-busy", "false"); }
+function notify(message) { dom.notice.textContent = message; dom.notice.hidden = false; clearTimeout(notify.timer); notify.timer = setTimeout(() => { dom.notice.hidden = true; }, 4500); }
+function section(title, body, actions = []) { return element("section", {}, [element("div", { class: "section-heading" }, [element("h2", { text: title }), ...actions]), body]); }
+
+function cover(item, className = "cover") {
+  const box = element("div", { class: className });
+  const url = coverUrl(item);
+  if (url) box.append(element("img", { src: url, alt: "", loading: "lazy" }));
+  else box.append(element("span", { class: "cover-placeholder", text: "♪", attrs: { "aria-hidden": "true" } }));
+  return box;
+}
+
+function albumCard(item, type = "album") {
+  const name = item.name || item.album || "Без названия";
+  const albumArtist = item.album_artist || "";
+  return element("article", { class: "card" }, [
+    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(item)]),
+    element("h3", { text: name }), element("p", { text: item.artist || item.album_artist || `${item.track_count || 0} треков` })
+  ]);
+}
+
+function trackRow(track, options = {}) {
+  const row = element("article", { class: "track-row", dataset: { trackId: String(track.id) } });
+  const image = cover(track, "row-cover");
+  const info = element("div", { class: "track-title" }, [element("strong", { text: track.title || "Без названия" }), element("span", { text: track.artist || "Неизвестный исполнитель" })]);
+  row.append(image, info, element("span", { class: "track-album", text: track.album || "Неизвестный альбом" }));
+  const rating = element("div", { class: "rating", attrs: { "aria-label": `Оценка ${track.title}` } });
+  for (let value = 1; value <= 5; value += 1) rating.append(element("button", { class: value <= (track.rating || 0) ? "active" : "", text: "★", dataset: { action: "rate", value: String(value), id: String(track.id) }, attrs: { type: "button", "aria-label": `${value} из 5` } }));
+  row.append(rating, iconButton(track.favorite ? "Убрать из избранного" : "Добавить в избранное", track.favorite ? "♥" : "♡", "favorite", { id: String(track.id), active: String(!track.favorite) }));
+  row.lastChild.classList.toggle("active", Boolean(track.favorite));
+  const actions = element("div", { class: "reorder" }, [iconButton("Воспроизвести", "▶", "play-one", { id: String(track.id) })]);
+  if (options.playlistId) {
+    actions.append(iconButton("Выше", "↑", "move-track", { id: String(track.id), direction: "up" }), iconButton("Ниже", "↓", "move-track", { id: String(track.id), direction: "down" }), iconButton("Удалить из плейлиста", "×", "remove-track", { id: String(track.id), playlistId: String(options.playlistId) }));
+  } else actions.append(iconButton("Добавить в плейлист", "+", "add-to-playlist", { id: String(track.id) }));
+  row.append(actions);
+  return row;
+}
+
+function trackList(items, options = {}) { return element("div", { class: "track-list" }, items.map((track) => trackRow(track, options))); }
+function playButtons(items) {
+  if (!items.length) return [];
+  const ids = items.map((item) => item.id).join(",");
+  return [element("button", { text: "▶ Слушать", dataset: { action: "play-list", ids }, attrs: { type: "button" } }), element("button", { class: "secondary", text: "Перемешать", dataset: { action: "shuffle-list", ids }, attrs: { type: "button" } })];
+}
+function pagination(total) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (pages === 1) return null;
+  return element("nav", { class: "pagination", attrs: { "aria-label": "Страницы" } }, [
+    element("button", { text: "Назад", disabled: state.page <= 1, dataset: { action: "page", page: String(state.page - 1) }, attrs: { type: "button" } }),
+    element("span", { text: `${state.page} из ${pages}` }),
+    element("button", { text: "Дальше", disabled: state.page >= pages, dataset: { action: "page", page: String(state.page + 1) }, attrs: { type: "button" } })
+  ]);
+}
+
+async function loadTracks(extra = "") {
+  const offset = (state.page - 1) * PAGE_SIZE;
+  const query = new URLSearchParams({ limit: PAGE_SIZE, offset, search: state.search });
+  if (extra) query.set("favorite", extra);
+  return request(`/tracks?${query}`);
+}
+
+async function renderHome() {
+  const allTracks = await fetchAllTracks();
+  const albums = await fetchAllGroups("albums");
+  state.catalogTracks = allTracks; state.tracks = [...allTracks].sort((left, right) => Number(right.id) - Number(left.id)).slice(0, 12);
+  if (!allTracks.length) { replace(dom.content, empty("Ваша медиатека пока пуста", "Настройте сетевую папку и запустите первое сканирование.", { label: "Открыть настройки", href: routePath("settings"), route: "settings" })); return; }
+  const favorites = allTracks.filter((item) => item.favorite);
+  replace(dom.content,
+    section("Недавно добавлено", trackList(state.tracks), playButtons(state.tracks)),
+    albums.length ? section("Альбомы", element("div", { class: "grid" }, albums.slice(0, 8).map((item) => albumCard(item)))) : null,
+    favorites.length ? section("Избранное", trackList(favorites)) : null
+  );
+}
+
+async function renderGroups(type) {
+  const allItems = await fetchAllGroups(type);
+  const title = type === "albums" ? "Альбомы" : "Исполнители";
+  const filtered = state.search ? allItems.filter((item) => (item.name || "").toLowerCase().includes(state.search.toLowerCase())) : allItems;
+  const pageItems = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+  if (!pageItems.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
+  else replace(dom.content, element("div", { class: "grid" }, pageItems.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(filtered.length));
+}
+
+async function renderSongs(favorite = false) {
+  const result = await loadTracks(favorite ? "true" : "");
+  state.tracks = result.items;
+  if (!result.items.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : favorite ? "Избранное пока пусто" : "В медиатеке нет песен", favorite ? "Отмечайте любимые треки сердцем — они появятся здесь." : "Запустите сканирование в настройках."));
+  else replace(dom.content, element("div", { class: "page-actions" }, [element("span", { text: `${result.total} треков` }), ...playButtons(result.items)]), trackList(result.items), pagination(result.total));
+}
+
+async function renderSelectedGroup(type, name, albumArtist = "") {
+  const allMatches = await fetchAllTracks({ search: name });
+  const key = type === "album" ? "album" : "artist";
+  const items = allMatches.filter((item) => item[key] === name && (type !== "album" || (item.album_artist || item.artist || "") === albumArtist));
+  state.tracks = items; state.selected = { type, name, albumArtist };
+  dom.title.textContent = name;
+  replace(dom.content, element("div", { class: "page-actions" }, playButtons(items)), items.length ? trackList(items) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
+}
+
+async function renderPlaylists() {
+  state.playlists = await request("/playlists");
+  const create = element("button", { text: "+ Новый плейлист", dataset: { action: "create-playlist" }, attrs: { type: "button" } });
+  if (!state.playlists.length) replace(dom.content, element("div", { class: "page-actions" }, [element("span", { text: "Локальные плейлисты" }), create]), empty("Пока нет плейлистов", "Создайте подборку и добавляйте в неё треки из медиатеки."));
+  else replace(dom.content, element("div", { class: "page-actions" }, [element("span", { text: `${state.playlists.length} плейлистов` }), create]), element("div", { class: "grid" }, state.playlists.map((item) => element("article", { class: "card" }, [element("button", { class: "cover-button", dataset: { action: "open-playlist", id: String(item.id) }, attrs: { type: "button", "aria-label": `Открыть ${item.name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(item)]), element("h3", { text: item.name }), element("p", { text: `${item.track_count || 0} треков` })]))));
+}
+
+async function renderPlaylist(id) {
+  const playlist = await request(`/playlists/${id}`);
+  state.selected = playlist; state.tracks = playlist.tracks || [];
+  dom.title.textContent = playlist.name;
+  const actions = element("div", { class: "page-actions" }, [element("div", {}, playButtons(state.tracks)), element("div", {}, [element("button", { class: "secondary", text: "Переименовать", dataset: { action: "rename-playlist", id: String(id), name: playlist.name }, attrs: { type: "button" } }), element("button", { class: "secondary", text: "Удалить", dataset: { action: "delete-playlist", id: String(id) }, attrs: { type: "button" } })])]);
+  replace(dom.content, actions, state.tracks.length ? trackList(state.tracks, { playlistId: id }) : empty("Плейлист пуст", "Добавьте песни кнопкой «+» в медиатеке."));
+}
+
+function field(name, label, value, type = "text") { return element("label", {}, [element("span", { text: label }), element("input", { name, value: value || "", type, autocomplete: "off" })]); }
+async function renderSettings() {
+  const settings = await request("/settings");
+  const share = await request("/share/status").catch(() => ({ state: "error" }));
+  const scan = await request("/scan/status");
+  const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [element("h2", { text: "Сетевая папка SMB" }), element("p", { text: `Статус: ${share.state || "не настроено"}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
+  const mpd = element("form", { class: "settings-card", dataset: { form: "mpd" } }, [element("h2", { text: "MPD" }), element("p", { text: "Пароль, если нужен, задаётся только переменной MPD_PASSWORD." }), element("div", { class: "field-grid" }, [field("mpd_host", "Host", settings.mpd_host || "host.docker.internal"), field("mpd_port", "Port", settings.mpd_port || "6600", "number"), field("mpd_uri_prefix", "URI-префикс", settings.mpd_uri_prefix)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить и проверить", type: "submit" })])]);
+  const counters = scan.counters || {}; const progress = scan.state === "running" ? Math.min(95, (counters.discovered || 0) ? 55 + (counters.indexed || 0) / counters.discovered * 40 : 15) : scan.state === "completed" ? 100 : 0;
+  const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${scan.state || "не запускалось"}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan" }, attrs: { type: "button" } })]);
+  replace(dom.content, element("div", { class: "settings-grid" }, [smb, mpd, scanner]));
+  clearTimeout(renderSettings.pollTimer);
+  if (scan.state === "running") renderSettings.pollTimer = setTimeout(() => { if (state.route === "settings") renderSettings().catch(errorView); }, 1000);
+}
+
+async function render() {
+  loading(); dom.title.textContent = routes.find(([id]) => id === state.route)?.[1] || "Медиатека"; dom.search.hidden = state.route === "settings"; dom.content.setAttribute("aria-busy", "true");
+  buildNavigation(document.querySelector("#sidebar-nav"), routes); buildNavigation(document.querySelector("#mobile-nav"), mobileRoutes);
+  try {
+    if (state.route === "home") await renderHome();
+    else if ((state.route === "albums" || state.route === "artists") && state.selected?.type) await renderSelectedGroup(state.selected.type, state.selected.name, state.selected.albumArtist);
+    else if (state.route === "albums" || state.route === "artists") await renderGroups(state.route);
+    else if (state.route === "songs") await renderSongs(false);
+    else if (state.route === "favorites") await renderSongs(true);
+    else if (state.route === "playlists" && state.selected?.id) await renderPlaylist(state.selected.id);
+    else if (state.route === "playlists") await renderPlaylists();
+    else if (state.route === "settings") await renderSettings();
+  } catch (error) { errorView(error); }
+  dom.content.setAttribute("aria-busy", "false");
+}
+
+async function setPreference(id, change) {
+  const item = state.tracks.find((track) => track.id === Number(id)); if (!item) return;
+  const previous = { rating: item.rating, favorite: item.favorite }; Object.assign(item, change);
+  try { Object.assign(item, await request(`/tracks/${id}/preference`, { method: "PUT", body: JSON.stringify(change) })); }
+  catch (error) { Object.assign(item, previous); notify(apiMessage(error)); }
+  if (state.selected?.tracks) state.selected.tracks = state.tracks; await redrawCurrent();
+}
+async function redrawCurrent() {
+  if (state.selected?.id && state.route === "playlists") await renderPlaylist(state.selected.id);
+  else if (state.selected?.type) await renderSelectedGroup(state.selected.type, state.selected.name, state.selected.albumArtist);
+  else if (state.route === "songs") await renderSongs(false); else if (state.route === "favorites") await renderSongs(true); else await render();
+}
+async function play(ids, shuffle = false) { try { await request("/player/play", { method: "POST", body: JSON.stringify({ track_ids: ids.map(Number), shuffle }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
+async function command(name, params = {}) { try { await request("/player/command", { method: "POST", body: JSON.stringify({ command: name, params }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
+
+function openPlaylistDialog(mode, data = {}) { dom.dialog.dataset.mode = mode; dom.dialog.dataset.id = data.id || ""; dom.dialogTitle.textContent = mode === "rename" ? "Переименовать плейлист" : "Новый плейлист"; dom.playlistName.value = data.name || ""; dom.dialog.showModal(); dom.playlistName.focus(); }
+async function savePlaylist(event) { event.preventDefault(); const name = dom.playlistName.value.trim(); if (!name) return; try { if (dom.dialog.dataset.mode === "rename") { const id = Number(dom.dialog.dataset.id); await request(`/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = { id }; await renderPlaylist(id); } else { await request("/playlists", { method: "POST", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = null; await render(); } } catch (error) { notify(apiMessage(error)); } }
+
+document.addEventListener("click", async (event) => {
+  const routeLink = event.target.closest("[data-route]");
+  if (routeLink) { event.preventDefault(); const next = routePath(routeLink.dataset.route); if (location.hash === next) { state.selected = null; state.page = 1; await render(); } else location.hash = next; return; }
+  const button = event.target.closest("[data-action]"); if (!button) return;
+  const action = button.dataset.action;
+  if (action === "retry") await render();
+  else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus(); }
+  else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
+  else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
+  else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
+  else if (action === "play-one") await play([button.dataset.id]);
+  else if (action === "play-list" || action === "shuffle-list") await play(button.dataset.ids.split(","), action === "shuffle-list");
+  else if (action === "create-playlist") openPlaylistDialog("create");
+  else if (action === "rename-playlist") openPlaylistDialog("rename", button.dataset);
+  else if (action === "open-playlist") { const next = `#/playlists/${button.dataset.id}`; if (location.hash === next) { state.selected = { id: Number(button.dataset.id) }; await renderPlaylist(Number(button.dataset.id)); } else location.hash = next; }
+  else if (action === "delete-playlist") { if (confirm("Удалить этот плейлист?")) { try { await request(`/playlists/${button.dataset.id}`, { method: "DELETE" }); location.hash = "#/playlists"; } catch (error) { actionError(error); } } }
+  else if (action === "remove-track") { try { await request(`/playlists/${button.dataset.playlistId}/tracks/${button.dataset.id}`, { method: "DELETE" }); await renderPlaylist(Number(button.dataset.playlistId)); } catch (error) { actionError(error); } }
+  else if (action === "move-track") { const index = state.tracks.findIndex((track) => track.id === Number(button.dataset.id)); const target = index + (button.dataset.direction === "up" ? -1 : 1); if (target >= 0 && target < state.tracks.length) { const order = state.tracks.map((track) => track.id); [order[index], order[target]] = [order[target], order[index]]; try { await request(`/playlists/${state.selected.id}/tracks`, { method: "PUT", body: JSON.stringify({ track_ids: order }) }); await renderPlaylist(state.selected.id); } catch (error) { actionError(error); } } }
+  else if (action === "add-to-playlist") { try { const playlists = await request("/playlists"); if (!playlists.length) { notify("Сначала создайте плейлист"); return; } const names = playlists.map((item, index) => `${index + 1}. ${item.name}`).join("\n"); const choice = Number(prompt(`Выберите номер плейлиста:\n${names}`)); const selected = playlists[choice - 1]; if (selected) { await request(`/playlists/${selected.id}/tracks`, { method: "POST", body: JSON.stringify({ track_id: Number(button.dataset.id) }) }); notify(`Добавлено в «${selected.name}»`); } } catch (error) { actionError(error); } }
+  else if (action === "scan") { try { await request("/scan", { method: "POST" }); notify("Сканирование запущено"); await renderSettings(); } catch (error) { notify(apiMessage(error)); } }
+});
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-form]"); if (!form) return; event.preventDefault(); const values = Object.fromEntries(new FormData(form));
+  try {
+    if (form.dataset.form === "smb") { await request("/share", { method: "POST", body: JSON.stringify({ host: values.smb_host, share: values.smb_share, domain: values.smb_domain, options: values.smb_options }) }); notify("SMB подключён"); }
+    else { await request("/settings", { method: "PATCH", body: JSON.stringify(values) }); const result = await request("/settings/test-mpd", { method: "POST" }); notify(result.online ? "MPD доступен" : "MPD не отвечает"); }
+    await renderSettings();
+  } catch (error) { notify(apiMessage(error)); }
+});
+
+dom.dialog.querySelector("form").addEventListener("submit", savePlaylist);
+document.querySelector("#playlist-cancel").addEventListener("click", () => dom.dialog.close());
+document.querySelector("[data-skip-link]").addEventListener("click", (event) => { event.preventDefault(); document.querySelector("#main").focus(); });
+dom.search.addEventListener("input", () => { clearTimeout(dom.search.timer); dom.search.timer = setTimeout(async () => { state.search = dom.search.value.trim(); state.page = 1; state.selected = null; await render(); }, 280); });
+window.addEventListener("hashchange", async () => { const next = locationFromHash(); state.route = next.route; state.selected = next.selected; state.page = 1; await render(); });
+document.querySelector(".transport").addEventListener("click", async (event) => { const button = event.target.closest("[data-command]"); if (!button) return; const name = button.dataset.command === "play" && state.player?.state === "play" ? "pause" : button.dataset.command; await command(name); });
+dom.seek.addEventListener("change", () => command("seek", { position: Number(dom.seek.value) }));
+dom.volume.addEventListener("change", () => command("volume", { volume: Number(dom.volume.value) }));
+
+async function resolvePlayerTrack(song) {
+  if (!song) return null;
+  if (!state.catalogTracks.length) state.catalogTracks = await fetchAllTracks();
+  const songId = Number(song.id || song.track_id || 0);
+  return state.catalogTracks.find((track) => songId && track.id === songId)
+    || state.catalogTracks.find((track) => track.path === song.file)
+    || state.catalogTracks.find((track) => song.file && song.file.endsWith(`/${track.path}`))
+    || null;
+}
+
+async function updatePlayer(player) {
+  state.player = player; const online = Boolean(player?.online); dom.player.classList.toggle("online", online); dom.player.classList.toggle("offline", !online); dom.playerState.textContent = online ? (player.state === "play" ? "Играет" : "Пауза") : "Не в сети";
+  const song = player?.song; dom.playerTitle.textContent = song?.title || song?.file || "Ничего не играет"; dom.playerArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
+  const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0); dom.elapsed.textContent = formatTime(elapsed); dom.duration.textContent = formatTime(duration); dom.seek.max = String(Math.max(1, duration)); dom.seek.value = String(Math.min(elapsed, duration || 1)); dom.volume.value = String(Number(player?.volume || 0));
+  for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { control.disabled = !online; control.setAttribute("aria-disabled", String(!online)); }
+  const toggle = document.querySelector(".play-toggle"); toggle.textContent = player?.state === "play" ? "Ⅱ" : "▶"; toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
+  replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.textContent = "♪";
+}
+async function pollPlayer() { try { await updatePlayer(await request("/player/status")); } catch { await updatePlayer({ online: false }); } }
+
+await render(); await pollPlayer(); setInterval(pollPlayer, 2000);
