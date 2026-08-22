@@ -72,8 +72,10 @@ class RadioBrowserDirectory:
                     # A small popular-stations supplement avoids an empty
                     # screen when a mirror has a shallow genre index, while
                     # retaining only stations with the selected tag.
-                    if len(stations) < bounded_limit:
-                        popular = self._filter_genre(self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), 8), normalized_genre)
+                    for popular_path in ("/json/stations/topclick/8", "/json/stations/topvote/8", "/json/stations/lastclick/8"):
+                        if len(stations) >= bounded_limit:
+                            break
+                        popular = self._filter_genre(self._stations(self._payload(popular_path, {"hidebroken": "true"}), 8), normalized_genre)
                         stations = self._merge_stations(stations, popular, limit=bounded_limit)
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error
