@@ -18,6 +18,7 @@ class WebApplicationTests(unittest.TestCase):
                 script = client.get("/assets/app.js")
                 styles = client.get("/assets/styles.css")
                 busy_styles = client.get("/assets/busy.css")
+                favicon = client.get("/assets/favicon.svg")
                 mobile_styles = client.get("/assets/mobile.css")
                 missing_api = client.get("/api/does-not-exist")
 
@@ -33,6 +34,9 @@ class WebApplicationTests(unittest.TestCase):
             self.assertEqual(busy_styles.status_code, 200)
             self.assertIn("button-stripes", busy_styles.text)
             self.assertIn("withButtonBusy", script.text)
+            self.assertEqual(favicon.status_code, 200)
+            self.assertEqual(favicon.headers["content-type"], "image/svg+xml")
+            self.assertIn('rel="icon"', index.text)
             self.assertEqual(mobile_styles.status_code, 200)
             self.assertIn("repeat(7", mobile_styles.text)
             self.assertEqual(missing_api.status_code, 404)
