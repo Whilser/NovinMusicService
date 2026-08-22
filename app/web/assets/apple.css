@@ -260,12 +260,12 @@ button svg, a svg { display: block; }
 .timeline { font-size: .68rem; }
 .status-pill { white-space: nowrap; }
 
-.fullscreen-player { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow: hidden; color: #fff; background: #1e1a08; }
+.fullscreen-player { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow: hidden; color: #fff; background: var(--fullscreen-primary, #1e1a08); }
 .fullscreen-player[hidden] { display: none; }
 .fullscreen-backdrop, .fullscreen-backdrop::after { position: absolute; inset: -40px; }
-.fullscreen-backdrop { background: radial-gradient(circle at 50% 45%, #9b6300, #191707 75%); overflow: hidden; }
+.fullscreen-backdrop { background: radial-gradient(circle at 50% 45%, var(--fullscreen-primary, #9b6300), var(--fullscreen-secondary, #191707) 75%); overflow: hidden; }
 .fullscreen-backdrop img { width: 100%; height: 100%; object-fit: cover; filter: blur(42px) saturate(1.3) brightness(.48); transform: scale(1.16); opacity: .82; }
-.fullscreen-backdrop::after { content: ""; background: linear-gradient(115deg, #100d07b8, #9b620060 55%, #090805b8); }
+.fullscreen-backdrop::after { content: ""; background: linear-gradient(115deg, color-mix(in srgb, var(--fullscreen-secondary, #100d07) 72%, #000), color-mix(in srgb, var(--fullscreen-primary, #9b6200) 55%, transparent) 55%, color-mix(in srgb, var(--fullscreen-secondary, #090805) 72%, #000)); }
 .fullscreen-shell { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(270px, 490px) minmax(260px, 440px); align-items: center; gap: clamp(46px, 9vw, 170px); width: min(1280px, calc(100vw - 120px)); }
 .fullscreen-close { position: fixed; top: 24px; left: 26px; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 1px solid #ffffff38; border-radius: 50%; color: #fff; background: #00000026; font-size: 2rem; font-weight: 200; line-height: 1; cursor: pointer; }
 .fullscreen-cover { grid-row: span 4; width: min(490px, 36vw); aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; border-radius: 13px; color: #ffffffa8; background: #00000028; box-shadow: 0 28px 70px #00000042; }

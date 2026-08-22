@@ -11,6 +11,7 @@ const routes = [
 const mobileRoutes = routes;
 const initialLocation = locationFromHash();
 const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "All" };
+const fullscreenPaletteCache = new Map();
 if (!location.hash) history.replaceState(null, "", "#/home");
 const dom = {
   content: document.querySelector("#content"), title: document.querySelector("#page-title"),
@@ -557,9 +558,31 @@ async function resolvePlayerTrack(song) {
 
 function setFullscreenCover(url) {
   replace(dom.fullscreenCover); replace(dom.fullscreenBackdrop);
-  if (!url) { dom.fullscreenCover.append(icon("music", 88)); return; }
-  dom.fullscreenCover.append(element("img", { src: url, alt: "" }));
+  if (!url) { dom.fullscreenCover.append(icon("music", 88)); dom.fullscreen.style.removeProperty("--fullscreen-primary"); dom.fullscreen.style.removeProperty("--fullscreen-secondary"); return; }
+  const cover = element("img", { src: url, alt: "" });
+  dom.fullscreenCover.append(cover);
   dom.fullscreenBackdrop.append(element("img", { src: url, alt: "" }));
+  applyFullscreenPalette(url, cover);
+}
+
+function applyFullscreenPalette(url, image) {
+  const apply = (palette) => { dom.fullscreen.style.setProperty("--fullscreen-primary", palette[0]); dom.fullscreen.style.setProperty("--fullscreen-secondary", palette[1]); };
+  if (fullscreenPaletteCache.has(url)) { apply(fullscreenPaletteCache.get(url)); return; }
+  image.addEventListener("load", () => {
+    try {
+      const canvas = document.createElement("canvas"); canvas.width = canvas.height = 32;
+      const context = canvas.getContext("2d", { willReadFrequently: true }); context.drawImage(image, 0, 0, 32, 32);
+      const buckets = new Map(); const pixels = context.getImageData(0, 0, 32, 32).data;
+      for (let index = 0; index < pixels.length; index += 16) {
+        const [red, green, blue] = [pixels[index], pixels[index + 1], pixels[index + 2]];
+        const key = `${Math.round(red / 32) * 32},${Math.round(green / 32) * 32},${Math.round(blue / 32) * 32}`;
+        buckets.set(key, (buckets.get(key) || 0) + 1);
+      }
+      const colors = [...buckets.entries()].sort((left, right) => right[1] - left[1]).slice(0, 2).map(([key]) => `rgb(${key})`);
+      const palette = [colors[0] || "#242424", colors[1] || colors[0] || "#111"];
+      fullscreenPaletteCache.set(url, palette); apply(palette);
+    } catch (_) { /* A cover may be unavailable while its player state is still valid. */ }
+  }, { once: true });
 }
 function updateFullscreenPlayer(player, track) {
   const song = player?.song; const online = Boolean(player?.online); const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0);
