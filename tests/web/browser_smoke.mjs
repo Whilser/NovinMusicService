@@ -230,6 +230,13 @@ try {
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await mobile.goto(`${origin}/#/songs`); await waitForRoute(mobile, "#/songs", "Песни", ".track-row");
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await mobile.goto(`${origin}/#/albums?name=Same&album_artist=Artist%20A`);
+  await mobile.waitForFunction(() => Boolean(document.querySelector(".track-row.compact")));
+  assert.equal(await mobile.evaluate(() => {
+    const row = document.querySelector(".track-row.compact"); const actions = row?.querySelector(".reorder");
+    return Boolean(row && actions && Math.abs(row.getBoundingClientRect().top - actions.getBoundingClientRect().top) < 18 && document.documentElement.scrollWidth <= innerWidth);
+  }), true);
+  await mobile.goto(`${origin}/#/songs`); await waitForRoute(mobile, "#/songs", "Песни", ".track-row");
   for (const label of ["Исполнители", "Избранное"]) assert.equal(await mobile.getByRole("link", { name: new RegExp(label) }).isVisible(), true);
   assert.equal(await mobile.getByRole("button", { name: "4 из 5" }).first().isVisible(), true);
   assert.equal(await mobile.getByLabel("Позиция воспроизведения", { exact: true }).isVisible(), true);
