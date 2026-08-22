@@ -77,6 +77,7 @@ replace(document.querySelector('[data-command="previous"]'), icon("previous", 18
 replace(document.querySelector('[data-command="next"]'), icon("next", 18));
 replace(document.querySelector('[data-command="play"]'), icon("play", 17));
 replace(document.querySelector(".volume > span[aria-hidden]"), icon("volume", 18));
+replace(document.querySelector(".fullscreen-volume > span[aria-hidden]"), icon("volume", 20));
 async function withButtonBusy(button, operation) {
   if (!button || button.dataset.busy === "true") return;
   const wasDisabled = button.disabled;
