@@ -184,34 +184,13 @@ button svg, a svg { display: block; }
   background: var(--accent);
 }
 .detail-actions .media-action:not(.secondary):hover {
-  position: relative;
-  isolation: isolate;
-}
-.detail-actions .media-action:not(.secondary):hover::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -4px;
-  padding: 3px;
-  border-radius: inherit;
-  background: conic-gradient(
-    transparent 0deg 16deg, #ff4d68 17deg 24deg, transparent 25deg 50deg,
-    #ffc14d 51deg 58deg, transparent 59deg 84deg, #d9f14a 85deg 92deg,
-    transparent 93deg 118deg, #45d8ba 119deg 126deg, transparent 127deg 152deg,
-    #45a8ff 153deg 160deg, transparent 161deg 186deg, #b778ff 187deg 194deg,
-    transparent 195deg 220deg, #ff6ba5 221deg 228deg, transparent 229deg 254deg,
-    #ff814d 255deg 262deg, transparent 263deg 288deg, #7fe06c 289deg 296deg,
-    transparent 297deg 322deg, #5dd5ff 323deg 330deg, transparent 331deg 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  filter: drop-shadow(0 0 3px #ffffff99);
-  animation: play-rainbow-orbit 2.4s linear infinite;
+  animation: play-prism 2.4s ease-in-out infinite;
 }
 
-@keyframes play-rainbow-orbit {
-  to { transform: rotate(1turn); }
+@keyframes play-prism {
+  0%, 100% { box-shadow: 0 0 0 2px #ff4b7099, 0 0 12px #ff4b7073, 0 0 22px #ffb84d50; }
+  33% { box-shadow: 0 0 0 2px #b875ff99, 0 0 12px #b875ff73, 0 0 22px #40d6ff50; }
+  66% { box-shadow: 0 0 0 2px #42d8b899, 0 0 12px #42d8b873, 0 0 22px #ffe44d50; }
 }
 
 .settings-grid { gap: 16px; }
