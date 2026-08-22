@@ -23,7 +23,7 @@ app/catalog/                SQLite schema, migrations, queries and local playlis
 app/scanner/                read-only filesystem scan and Mutagen metadata extraction
 app/share/                  mount.cifs lifecycle and sanitized share status
 app/mpd/                    MPD TCP protocol, transport whitelist and temporary queue
-app/web/                    index.html plus framework-free CSS/JavaScript SPA
+app/web/                    static SPA, base/mobile CSS and final apple.css presentation
 scripts/                    container entrypoint and online SQLite backup
 tests/                      unittest suites, API/integration tests and browser smoke
 Dockerfile                  Python 3.12 runtime with CIFS tools
@@ -40,13 +40,15 @@ docker-compose*.yml         persistent data, CIFS capability and AppArmor opt-in
 - `app/scanner/scanner.py`: supported audio discovery, normalized track rows, embedded/folder cover selection and per-file failure accounting.
 - `app/share/manager.py`: fixed mount point, allowlisted SMB options, temporary credentials file and sanitized subprocess boundary.
 - `app/mpd/client.py`: MPD framing/auth/escaping, status parsing, URI-prefix validation and allowed transport commands.
-- `app/web/assets/app.js`: hash-routed SPA state, `/api/*` calls, safe DOM rendering and player polling.
+- `app/web/index.html`: stable DOM shell; loads `apple.css` after the base, busy and mobile styles.
+- `app/web/assets/apple.css`: Apple Music-like tokens and presentation for sidebar, heroes, lists, floating player and responsive layouts.
+- `app/web/assets/app.js`: hash-routed SPA state, `/api/*` calls, one `ICON_PATHS` inline-SVG registry, safe DOM rendering and player polling.
 - `docker-compose.yml`: runtime security boundary, `novin_data`, `/music`, healthcheck and host MPD gateway.
 - `scripts/backup.py`: non-overwriting SQLite Online Backup API snapshot with integrity check and atomic publication.
 
 ## Архитектура и поток данных
 
-- Browser загружает статику из `app/web/`, хранит маршрут в URL hash и обращается только к `/api/*`.
+- Browser загружает статический shell из `app/web/`; `app.js` строит экраны и inline SVG, хранит маршрут в URL hash и обращается только к `/api/*`.
 - Catalog API вызывает `Catalog`; SQLite `catalog.sqlite3` хранит индекс, несекретные настройки, оценки, избранное и локальные плейлисты.
 - Share API передаёт несекретные settings в `ShareManager`; credentials берутся только из environment, а SMB монтируется read-only в `/music`.
 - Scan API запускает фоновый `Scanner`; полный snapshot атомарно передаётся в `Catalog.reconcile_tracks()`, а при ошибке старый каталог сохраняется.
@@ -62,7 +64,8 @@ docker-compose*.yml         persistent data, CIFS capability and AppArmor opt-in
 - Track JSON keeps fields `id,path,title,artist,album,album_artist,track_no,disc_no,year,genre,duration,cover_url,rating,favorite` stable.
 - SMB remains read-only and option-allowlisted; never place username/password in argv, status JSON or logs.
 - MPD commands remain allowlisted and operate on the current queue; saved-playlist commands are deliberately unsupported.
-- Frontend uses DOM nodes and `textContent` for user data, ES modules without bundling, hash routes and responsive desktop/mobile layouts.
+- Frontend uses DOM nodes and `textContent` for user data, ES modules without bundling and a single inline-SVG registry; preserve DOM ids, `data-action`, `data-command`, hash routes and `/api/*` requests when changing presentation.
+- `apple.css` owns the visual override layer and responsive desktop/tablet/mobile composition; keep it last in the stylesheet order.
 - Unknown non-API paths return `index.html`; unknown `/api/*` paths must remain JSON 404 responses.
 
 ## Окружение
@@ -81,7 +84,7 @@ docker-compose*.yml         persistent data, CIFS capability and AppArmor opt-in
 - Tests use stdlib `unittest`; API coverage uses FastAPI/HTTPX and module seams, integration delivery tests cover Compose structure and SQLite backup.
 - Run one module as `python3 -m unittest tests.catalog.test_catalog -v`; replace the dotted module with another path under `tests/`.
 - `tests/web/test_web.py` shells out to the same browser contract as `npm run test:web`; the full Python suite therefore includes browser smoke.
-- `tests/web/browser_smoke.mjs` starts a local fixture server and headless Chromium, then checks routes, CRUD, states, player, injection safety, responsive layouts and accessibility.
+- `tests/web/browser_smoke.mjs` starts a local fixture server and headless Chromium, then checks routes, CRUD, SVG-backed actions, Apple accent, player, injection safety, responsive layouts and accessibility.
 - Browser and MPD tests bind loopback sockets; restricted sandboxes must permit local listeners.
 - Docker integration tests skip build/config/start/health checks when Docker CLI is unavailable.
 
@@ -94,6 +97,7 @@ docker-compose*.yml         persistent data, CIFS capability and AppArmor opt-in
 - No authentication exists; bind to localhost or a trusted LAN and never expose this service directly to the internet.
 - `docker compose down -v` deletes the persistent `novin_data` catalog; use `scripts/backup.py` and copy backups outside the volume.
 - FastAPI currently emits deprecation warnings for `app.on_event("shutdown")`; tests pass, but a framework upgrade should migrate this to lifespan handling.
+- Presentation changes must retain the existing action/API seams: browser smoke intentionally drives `data-action`, `data-command`, hash navigation and mocked `/api/*`, not implementation helpers.
 
 ## Как здесь работает Autopilot
 

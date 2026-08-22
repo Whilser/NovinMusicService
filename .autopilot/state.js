@@ -9,8 +9,8 @@ window.STATE =
   "briefFile": "2026-08-22-brief.md",
   "memoryFile": "AGENTS.md",
   "startedAt": "2026-08-22T18:42:56+05:00",
-  "updatedAt": "2026-08-22T18:55:11+05:00",
-  "finishedAt": null,
+  "updatedAt": "2026-08-22T18:59:46+05:00",
+  "finishedAt": "2026-08-22T18:59:46+05:00",
   "stages": [
     { "id": "preflight", "status": "done", "startedAt": "2026-08-22T18:42:56+05:00", "finishedAt": "2026-08-22T18:43:35+05:00" },
     { "id": "manifest", "status": "done", "startedAt": "2026-08-22T18:43:35+05:00", "finishedAt": "2026-08-22T18:44:03+05:00" },
@@ -19,7 +19,7 @@ window.STATE =
     { "id": "plan", "status": "skipped", "startedAt": "2026-08-22T18:45:36+05:00", "finishedAt": "2026-08-22T18:45:36+05:00", "note": "ярус T0 — один web-слой, без разбивки" },
     { "id": "build", "status": "done", "startedAt": "2026-08-22T18:45:36+05:00", "finishedAt": "2026-08-22T18:55:11+05:00", "note": "Apple Music-подобный web presentation реализован" },
     { "id": "review", "status": "done", "startedAt": "2026-08-22T18:52:00+05:00", "finishedAt": "2026-08-22T18:55:11+05:00", "note": "manifest/spec/craft clean; desktop и mobile проверены визуально" },
-    { "id": "final", "status": "pending" }
+    { "id": "final", "status": "done", "startedAt": "2026-08-22T18:56:00+05:00", "finishedAt": "2026-08-22T18:59:46+05:00", "note": "слепая приёмка согласна с 3 из 3 требований" }
   ],
   "requirements": {
     "total": 3, "done": 3, "inTicket": 0, "inSpec": 0,
@@ -38,5 +38,11 @@ window.STATE =
   "debt": { "placeholders": [], "assumptions": [], "emptyEnv": [] },
   "additions": [],
   "coverage": { "found": 0, "fixed": 0, "deferred": 0, "extra": "только углубления R01–R03i" },
-  "blind": null
+  "blind": {
+    "status": "agreed",
+    "checkedAt": "2026-08-22T18:58:00+05:00",
+    "requirements": { "implemented": 3, "partial": 0, "missing": 0 },
+    "evidence": "реальный запуск uvicorn; единые SVG; sidebar, album hero и floating player; 52 tests OK; browser smoke OK",
+    "drift": []
+  }
 }
