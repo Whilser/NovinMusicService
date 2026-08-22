@@ -186,18 +186,28 @@ button svg, a svg { display: block; }
 .detail-actions .media-action:not(.secondary):hover {
   position: relative;
   isolation: isolate;
-  box-shadow: 0 0 14px #fa2d4860;
 }
 .detail-actions .media-action:not(.secondary):hover::before {
   content: "";
   position: absolute;
   z-index: -1;
-  inset: -5px;
+  inset: -4px;
+  padding: 3px;
   border-radius: inherit;
-  background: conic-gradient(from 0deg, #ff486a, #ffb44a, #d9f14a, #45d8ba, #44a7ff, #b778ff, #ff486a);
-  filter: blur(3px);
-  opacity: .82;
-  animation: play-rainbow-orbit 1.8s linear infinite;
+  background: conic-gradient(
+    transparent 0deg 16deg, #ff4d68 17deg 24deg, transparent 25deg 50deg,
+    #ffc14d 51deg 58deg, transparent 59deg 84deg, #d9f14a 85deg 92deg,
+    transparent 93deg 118deg, #45d8ba 119deg 126deg, transparent 127deg 152deg,
+    #45a8ff 153deg 160deg, transparent 161deg 186deg, #b778ff 187deg 194deg,
+    transparent 195deg 220deg, #ff6ba5 221deg 228deg, transparent 229deg 254deg,
+    #ff814d 255deg 262deg, transparent 263deg 288deg, #7fe06c 289deg 296deg,
+    transparent 297deg 322deg, #5dd5ff 323deg 330deg, transparent 331deg 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 3px #ffffff99);
+  animation: play-rainbow-orbit 2.4s linear infinite;
 }
 
 @keyframes play-rainbow-orbit {
