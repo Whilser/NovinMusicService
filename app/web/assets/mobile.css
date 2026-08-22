@@ -1,6 +1,6 @@
 @media (max-width:800px) {
   :root { --player: 112px; }
-  .mobile-nav { grid-template-columns: repeat(7, 1fr); }
+  .mobile-nav { grid-template-columns: repeat(8, 1fr); }
   .mobile-nav .nav-item { min-width: 0; font-size: .58rem; }
   .mobile-nav .nav-icon { width: auto; }
   .player { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 54px 34px; height: var(--player); gap: 2px 12px; }

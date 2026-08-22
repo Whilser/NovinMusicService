@@ -178,7 +178,7 @@ class DeliveryIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            {"SMB_USERNAME", "SMB_PASSWORD", "MPD_PASSWORD", "NOVIN_BIND_ADDRESS", "NOVIN_PORT"},
+            {"SMB_USERNAME", "SMB_PASSWORD", "MPD_PASSWORD", "SHOUTCAST_API_KEY", "NOVIN_BIND_ADDRESS", "NOVIN_PORT"},
             set(entries),
         )
         self.assertTrue(all(value == "" for value in entries.values()))

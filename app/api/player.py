@@ -44,6 +44,9 @@ class _InvalidMpdClient:
     def play_uris(self, paths, shuffle: bool = False):
         raise self.error
 
+    def play_stream(self, stream_url: str):
+        raise self.error
+
 
 def get_mpd_client(catalog: Catalog = Depends(get_catalog)):
     settings = catalog.get_settings()

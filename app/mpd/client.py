@@ -4,6 +4,7 @@ import random
 import socket
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Optional
+from urllib.parse import urlparse
 
 
 class MpdError(Exception):
@@ -178,4 +179,14 @@ class MpdClient:
             random.shuffle(uris)
         commands = ["clear"] + ["add {}".format(_quote(uri)) for uri in uris] + ["play"]
         self._run(commands)
+        return self.status()
+
+    def play_stream(self, stream_url: str) -> dict[str, Any]:
+        """Replace only the temporary queue with a trusted directory stream."""
+        if not isinstance(stream_url, str) or len(stream_url) > 2048 or any(ord(char) < 32 for char in stream_url):
+            raise MpdCommandError("invalid radio stream URL")
+        parsed = urlparse(stream_url)
+        if parsed.scheme != "https" or parsed.netloc != "yp.shoutcast.com" or not parsed.path.endswith(".pls"):
+            raise MpdCommandError("radio stream URL is not an allowed Shoutcast playlist")
+        self._run(["clear", "add {}".format(_quote(stream_url)), "play"])
         return self.status()

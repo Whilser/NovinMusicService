@@ -15,7 +15,7 @@ TRACK_FIELDS = (
 ALLOWED_SETTINGS = frozenset(
     {
         "smb_host", "smb_share", "smb_username", "smb_mount_path", "smb_domain", "smb_options",
-        "mpd_host", "mpd_port", "mpd_uri_prefix",
+        "mpd_host", "mpd_port", "mpd_uri_prefix", "catalog_page_size",
     }
 )
 SECRET_MARKERS = ("password", "secret", "token", "credential", "api_key", "apikey")
@@ -496,6 +496,8 @@ class Catalog:
             raise ValidationError("unknown or secret setting keys are not allowed", {"keys": sorted(invalid)})
         if any(not isinstance(value, str) for value in mapping.values()):
             raise ValidationError("setting values must be strings", {"field": "settings"})
+        if "catalog_page_size" in mapping and mapping["catalog_page_size"] not in {"12", "18", "24", "30", "36", "48"}:
+            raise ValidationError("catalog_page_size must be one of 12, 18, 24, 30, 36 or 48", {"field": "catalog_page_size"})
         with self._lock, self._connection:
             for key, value in mapping.items():
                 self._connection.execute(

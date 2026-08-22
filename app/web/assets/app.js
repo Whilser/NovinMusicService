@@ -1,16 +1,16 @@
 const API = "/api";
-const PAGE_SIZE = 24;
+const DEFAULT_PAGE_SIZE = 24;
 const CATALOG_ALPHABET = [..."АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"];
 
 const routes = [
-  ["home", "Главная", "home"], ["albums", "Альбомы", "albums"],
+  ["home", "Главная", "home"], ["radio", "Радио", "radio"], ["albums", "Альбомы", "albums"],
   ["artists", "Исполнители", "artists"], ["songs", "Песни", "music"],
   ["playlists", "Плейлисты", "playlist"], ["favorites", "Избранное", "heart"],
   ["settings", "Настройки", "settings"]
 ];
 const mobileRoutes = routes;
 const initialLocation = locationFromHash();
-const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null };
+const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "Pop" };
 if (!location.hash) history.replaceState(null, "", "#/home");
 const dom = {
   content: document.querySelector("#content"), title: document.querySelector("#page-title"),
@@ -45,6 +45,7 @@ const ICON_PATHS = {
   home: [["path", { d: "M3 10.5 12 3l9 7.5" }], ["path", { d: "M5 9.5V21h14V9.5M9 21v-7h6v7" }]],
   albums: [["rect", { x: "4", y: "3", width: "16", height: "18", rx: "2.5" }], ["path", { d: "M8 8h8M8 12h8M8 16h5" }]],
   artists: [["circle", { cx: "12", cy: "8", r: "4" }], ["path", { d: "M4.5 21c.7-4.2 3.2-6.3 7.5-6.3s6.8 2.1 7.5 6.3" }]],
+  radio: [["circle", { cx: "12", cy: "12", r: "2", fill: "currentColor", stroke: "none" }], ["path", { d: "M7.7 7.7a6 6 0 0 0 0 8.6M16.3 7.7a6 6 0 0 1 0 8.6M4.8 4.8a10 10 0 0 0 0 14.4M19.2 4.8a10 10 0 0 1 0 14.4" }]],
   music: [["path", { d: "M9 18V5l10-2v13" }], ["circle", { cx: "6", cy: "18", r: "3" }], ["circle", { cx: "16", cy: "16", r: "3" }]],
   playlist: [["path", { d: "M4 6h10M4 11h10M4 16h7M18 13v7" }], ["circle", { cx: "15.5", cy: "20", r: "2.5" }]],
   heart: [["path", { d: "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" }]],
@@ -107,6 +108,13 @@ function locationFromHash() {
 function routePath(route, page = 1) { const query = page > 1 ? `?${new URLSearchParams({ page: String(page) })}` : ""; return `#/${route}${query}`; }
 function selectedPath(type, name, albumArtist = "", returnPage = 1) { const query = new URLSearchParams({ name, return_page: String(returnPage) }); if (albumArtist) query.set("album_artist", albumArtist); return `#/${type === "album" ? "albums" : "artists"}?${query}`; }
 function formatTime(value) { const seconds = Math.max(0, Number(value) || 0); return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`; }
+function pageSize() { return state.catalogPageSize || DEFAULT_PAGE_SIZE; }
+async function ensureCatalogPageSize() {
+  if (state.catalogPageSizeLoaded) return;
+  const settings = await request("/settings").catch(() => ({}));
+  state.catalogPageSize = [12, 18, 24, 30, 36, 48].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
+  state.catalogPageSizeLoaded = true;
+}
 function coverUrl(item) { return item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : ""); }
 function apiMessage(error) { return error?.error?.message || error?.message || "Не удалось выполнить запрос"; }
 
@@ -254,7 +262,7 @@ function playButtons(items) {
   return [element("button", { class: "media-action", dataset: { action: "play-list", ids }, attrs: { type: "button", "aria-label": "Воспроизвести все" } }, labeledIcon("play", "Воспроизвести")), element("button", { class: "secondary media-action", dataset: { action: "shuffle-list", ids }, attrs: { type: "button" } }, labeledIcon("shuffle", "Перемешать"))];
 }
 function pagination(total) {
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(total / pageSize()));
   if (pages === 1) return null;
   const visible = pages <= 7 ? Array.from({ length: pages }, (_, index) => index + 1) : state.page <= 4 ? [1, 2, 3, 4, "…", pages] : state.page >= pages - 3 ? [1, "…", pages - 3, pages - 2, pages - 1, pages] : [1, "…", state.page - 1, state.page, state.page + 1, "…", pages];
   const pageLinks = visible.map((page) => page === "…" ? element("span", { class: "pagination-ellipsis", text: "…", attrs: { "aria-hidden": "true" } }) : element("button", { class: `page-number${page === state.page ? " active" : ""}`, text: String(page), disabled: page === state.page, dataset: { action: "page", page: String(page) }, attrs: { type: "button", "aria-label": `Страница ${page}`, "aria-current": page === state.page ? "page" : null } }));
@@ -282,8 +290,8 @@ async function alphabetItems() {
 }
 
 async function loadTracks(extra = "") {
-  const offset = (state.page - 1) * PAGE_SIZE;
-  const query = new URLSearchParams({ limit: PAGE_SIZE, offset, search: state.search });
+  const offset = (state.page - 1) * pageSize();
+  const query = new URLSearchParams({ limit: String(pageSize()), offset: String(offset), search: state.search });
   if (extra) query.set("favorite", extra);
   return request(`/tracks?${query}`);
 }
@@ -302,12 +310,44 @@ async function renderHome() {
 }
 
 async function renderGroups(type) {
+  await ensureCatalogPageSize();
   const title = type === "albums" ? "Альбомы" : "Исполнители";
-  const groupsQuery = new URLSearchParams({ page: String(state.page), page_size: String(PAGE_SIZE), search: state.search });
-  const initialsQuery = new URLSearchParams({ kind: type, search: state.search, page_size: String(PAGE_SIZE) });
+  const groupsQuery = new URLSearchParams({ page: String(state.page), page_size: String(pageSize()), search: state.search });
+  const initialsQuery = new URLSearchParams({ kind: type, search: state.search, page_size: String(pageSize()) });
   const [result, initials] = await Promise.all([request(`/${type}?${groupsQuery}`), request(`/catalog/initials?${initialsQuery}`)]);
   if (!result.items.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
   else replace(dom.content, element("div", { class: "grid catalog-grid" }, result.items.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(result.total), alphabetIndex(initials.items.map((letter) => ({ letter })), "letter", initials.pages));
+}
+
+function radioCard(station, index) {
+  const palettes = ["rose", "gold", "blue", "teal", "violet", "coral"];
+  return element("article", { class: `radio-card radio-card--${palettes[index % palettes.length]}` }, [
+    element("button", { dataset: { action: "play-radio", id: station.id }, attrs: { type: "button", "aria-label": `Воспроизвести ${station.name}` } }, [
+      element("span", { class: "radio-card-label", text: station.genre || "Shoutcast" }),
+      element("strong", { text: station.name }),
+      element("span", { class: "radio-card-now", text: station.now_playing || "Shoutcast Radio" }),
+      element("span", { class: "radio-card-play" }, [icon("play", 20)])
+    ]),
+    element("p", { text: `${station.listeners ? `${station.listeners.toLocaleString("ru-RU")} слушателей` : "Онлайн-станция"}${station.bitrate ? ` · ${station.bitrate} kbps` : ""}` })
+  ]);
+}
+
+async function renderRadio() {
+  const query = new URLSearchParams({ genre: state.radioGenre, limit: "18" });
+  if (state.search) query.set("search", state.search);
+  const result = await request(`/radio?${query}`);
+  if (!result.configured) {
+    replace(dom.content, empty("Радио Shoutcast ещё не подключено", "Добавьте SHOUTCAST_API_KEY в .env на сервере novin и перезапустите сервис. Ключ нужен только для получения каталога станций и не хранится в базе."));
+    return;
+  }
+  const genres = element("div", { class: "radio-genres", attrs: { "aria-label": "Жанры радио" } }, result.genres.map((genre) => element("button", {
+    class: genre === result.genre ? "active" : "", text: genre, dataset: { action: "radio-genre", genre }, attrs: { type: "button" }
+  })));
+  const intro = element("section", { class: "radio-hero" }, [
+    element("p", { text: "SHOUTCAST" }), element("h2", { text: state.search ? `Результаты поиска: ${state.search}` : "Радио" }),
+    element("span", { text: "Выберите станцию — она будет загружена во временную очередь MPD." })
+  ]);
+  replace(dom.content, intro, genres, result.stations.length ? element("section", { class: "radio-section" }, [element("h2", { text: state.search ? "Станции" : `Станции: ${result.genre}` }), element("div", { class: "radio-grid" }, result.stations.map(radioCard))]) : empty("Станции не найдены", "Выберите другой жанр или измените запрос."));
 }
 
 async function renderSongs(favorite = false) {
@@ -364,11 +404,14 @@ async function renderPlaylist(id) {
 }
 
 function field(name, label, value, type = "text") { return element("label", {}, [element("span", { text: label }), element("input", { name, value: value || "", type, autocomplete: "off" })]); }
+function selectField(name, label, value, options) { return element("label", {}, [element("span", { text: label }), element("select", { name, value: value || String(DEFAULT_PAGE_SIZE) }, options.map((option) => element("option", { value: String(option), text: `${option} обложки` })))]); }
 function serviceHeading(title, tone, statusText) {
   return element("h2", { class: "service-heading" }, [element("span", { text: title }), element("span", { class: `service-status service-status--${tone}`, attrs: { role: "status", "aria-label": statusText } })]);
 }
 async function renderSettings() {
   const settings = await request("/settings");
+  state.catalogPageSize = [12, 18, 24, 30, 36, 48].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
+  state.catalogPageSizeLoaded = true;
   const share = await request("/share/status").catch(() => ({ state: "error" }));
   const player = await request("/player/status").catch(() => ({ online: false }));
   const scan = await request("/scan/status");
@@ -378,8 +421,9 @@ async function renderSettings() {
   const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [serviceHeading("Сетевая папка SMB", smbTone, `SMB: ${share.state === "connected" ? "подключено" : share.state === "not_configured" ? "не настроено" : "оффлайн"}`), element("p", { text: `Статус: ${share.state || "не настроено"} · Авторизация: ${authentication}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
   const mpd = element("form", { class: "settings-card", dataset: { form: "mpd" } }, [serviceHeading("MPD", mpdTone, `MPD: ${player.online ? "подключён" : mpdTone === "red" ? "не настроен" : "оффлайн"}`), element("p", { text: "Пароль, если нужен, задаётся только переменной MPD_PASSWORD." }), element("div", { class: "field-grid" }, [field("mpd_host", "Host", settings.mpd_host || "host.docker.internal"), field("mpd_port", "Port", settings.mpd_port || "6600", "number"), field("mpd_uri_prefix", "URI-префикс", settings.mpd_uri_prefix)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить и проверить", type: "submit" })])]);
   const counters = scan.counters || {}; const progress = scan.state === "running" ? Math.min(95, (counters.discovered || 0) ? 55 + (counters.indexed || 0) / counters.discovered * 40 : 15) : scan.state === "completed" ? 100 : 0;
+  const appearance = element("form", { class: "settings-card", dataset: { form: "appearance" } }, [element("h2", { text: "Отображение" }), element("p", { text: "Количество карточек на одной странице разделов «Альбомы» и «Исполнители»." }), element("div", { class: "field-grid" }, [selectField("catalog_page_size", "Обложек на странице", String(state.catalogPageSize), [12, 18, 24, 30, 36, 48])]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить", type: "submit" })])]);
   const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${scan.state || "не запускалось"}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: scan.state === "running" ? "primary is-busy" : "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan", ...(scan.state === "running" ? { busy: "true" } : {}) }, attrs: { type: "button", ...(scan.state === "running" ? { "aria-busy": "true", "aria-disabled": "true" } : {}) } })]);
-  replace(dom.content, element("div", { class: "settings-grid" }, [smb, mpd, scanner]));
+  replace(dom.content, element("div", { class: "settings-grid" }, [smb, mpd, appearance, scanner]));
   clearTimeout(renderSettings.pollTimer);
   if (scan.state === "running") renderSettings.pollTimer = setTimeout(() => { if (state.route === "settings") renderSettings().catch(errorView); }, 1000);
 }
@@ -389,6 +433,7 @@ async function render() {
   buildNavigation(document.querySelector("#sidebar-nav"), routes); buildNavigation(document.querySelector("#mobile-nav"), mobileRoutes);
   try {
     if (state.route === "home") await renderHome();
+    else if (state.route === "radio") await renderRadio();
     else if ((state.route === "albums" || state.route === "artists") && state.selected?.type) await renderSelectedGroup(state.selected.type, state.selected.name, state.selected.albumArtist);
     else if (state.route === "albums" || state.route === "artists") await renderGroups(state.route);
     else if (state.route === "songs") await renderSongs(false);
@@ -448,13 +493,15 @@ document.addEventListener("click", async (event) => {
     const field = state.route === "songs" || state.route === "favorites" ? "artist" : "name";
     const index = items.findIndex((item) => alphabetLetter(item[field]) === button.dataset.letter);
     if (index < 0) notify(`Для буквы «${button.dataset.letter}» ничего не найдено`);
-    else { state.page = Math.floor(index / PAGE_SIZE) + 1; await render(); document.querySelector("#main").focus({ focusVisible: false }); }
+    else { state.page = Math.floor(index / pageSize()) + 1; await render(); document.querySelector("#main").focus({ focusVisible: false }); }
   }
   else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route, Number(button.dataset.page) || 1); if (location.hash === next) await render(); else location.hash = next; }
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist, Number(button.dataset.returnPage) || 1); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
+  else if (action === "radio-genre") { state.radioGenre = button.dataset.genre; await renderRadio(); }
+  else if (action === "play-radio") { try { await request("/radio/play", { method: "POST", body: JSON.stringify({ station_id: button.dataset.id }) }); await pollPlayer(); notify("Станция загружена в MPD"); } catch (error) { notify(apiMessage(error)); } }
   else if (action === "pause-track") await command("pause");
   else if (action === "play-list" || action === "shuffle-list") await play(button.dataset.ids.split(","), action === "shuffle-list");
   else if (action === "create-playlist") openPlaylistDialog("create");
@@ -472,6 +519,7 @@ document.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-form]"); if (!form) return; event.preventDefault(); const values = Object.fromEntries(new FormData(form));
   await withButtonBusy(event.submitter || form.querySelector('button[type="submit"]'), async () => { try {
     if (form.dataset.form === "smb") { await request("/share", { method: "POST", body: JSON.stringify({ host: values.smb_host, share: values.smb_share, domain: values.smb_domain, options: values.smb_options }) }); notify("SMB подключён"); }
+    else if (form.dataset.form === "appearance") { await request("/settings", { method: "PATCH", body: JSON.stringify(values) }); state.catalogPageSize = Number(values.catalog_page_size); state.catalogPageSizeLoaded = true; state.page = 1; notify("Количество обложек сохранено"); }
     else { await request("/settings", { method: "PATCH", body: JSON.stringify(values) }); const result = await request("/settings/test-mpd", { method: "POST" }); notify(result.online ? "MPD доступен" : "MPD не отвечает"); }
     await renderSettings();
   } catch (error) { notify(apiMessage(error)); } });
@@ -498,6 +546,7 @@ dom.fullscreenVolume.addEventListener("change", () => command("volume", { volume
 
 async function resolvePlayerTrack(song) {
   if (!song) return null;
+  if (/^https?:\/\//i.test(song.file || "")) return null;
   if (!state.catalogTracks.length) state.catalogTracks = await fetchAllTracks();
   return state.catalogTracks.find((track) => track.path === song.file)
     || state.catalogTracks.find((track) => song.file && song.file.endsWith(`/${track.path}`))

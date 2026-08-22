@@ -128,6 +128,15 @@ class MpdClientTests(unittest.TestCase):
         with self.assertRaisesRegex(MpdCommandError, "music root"):
             client.play_uris(["album/song.flac"])
 
+    def test_play_stream_accepts_only_shoutcast_https_playlists(self):
+        responses = {"status": ["state: play", "OK"], "currentsong": ["file: station.pls", "OK"]}
+        with FakeMpdServer(responses) as server:
+            client = MpdClient("127.0.0.1", server.port, timeout=0.5)
+            client.play_stream("https://yp.shoutcast.com/sbin/tunein-station.pls?id=42")
+            self.assertIn('add "https://yp.shoutcast.com/sbin/tunein-station.pls?id=42"', server.server.commands)
+            with self.assertRaises(MpdCommandError):
+                client.play_stream("http://example.test/stream")
+
     def test_transport_whitelist_maps_to_mpd_commands_and_returns_status(self):
         responses = {"status": ["state: pause", "OK"], "currentsong": ["OK"]}
         with FakeMpdServer(responses) as server:
