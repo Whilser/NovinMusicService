@@ -96,7 +96,7 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertEqual(albums["items"][0]["album_artist"], "Разные исполнители")
             catalog.close()
 
-    def test_artists_include_up_to_four_distinct_album_covers_for_collages(self):
+    def test_artists_return_cached_image_state_without_cover_fan_out(self):
         with tempfile.TemporaryDirectory() as directory:
             catalog = Catalog(Path(directory) / "catalog.sqlite3")
             catalog.reconcile_tracks(
@@ -106,7 +106,7 @@ class CatalogQueryTests(unittest.TestCase):
                 ]
             )
             artist = catalog.list_artists()["items"][0]
-            self.assertEqual(artist["album_cover_urls"].split("\x1f"), ["cover-1", "cover-2", "cover-3", "cover-4"])
+            self.assertNotIn("album_cover_urls", artist)
             catalog.save_artist_image("Alpha", None, "missing", "wikimedia")
             self.assertEqual(catalog.list_artists()["items"][0]["artist_image_status"], "missing")
             catalog.close()

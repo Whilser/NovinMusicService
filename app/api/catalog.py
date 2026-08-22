@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import hashlib
 from typing import Dict, List, Optional
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, Field
@@ -54,34 +52,35 @@ def tracks(
 
 
 @router.get("/albums")
-def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
+def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200), search: str = "",
            catalog: Catalog = Depends(get_catalog)) -> dict:
-    return catalog.list_albums(page=page, page_size=page_size)
+    return catalog.list_albums(page=page, page_size=page_size, search=search)
 
 
 @router.get("/artists")
-def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
+def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200), search: str = "",
            catalog: Catalog = Depends(get_catalog)) -> dict:
-    result = catalog.list_artists(page=page, page_size=page_size)
+    result = catalog.list_artists(page=page, page_size=page_size, search=search)
     for item in result["items"]:
         cover_id = item.pop("artist_cover_id", None)
         image_status = item.get("artist_image_status")
         if cover_id and image_status == "ready":
             item["cover_url"] = f"/api/covers/{cover_id}"
-        covers = item.pop("album_cover_urls", "")
-        item["album_covers"] = [cover for cover in covers.split("\x1f") if cover] if covers else []
-        if image_status == "missing" and item["album_covers"]:
-            version = hashlib.sha256("\x1f".join(item["album_covers"]).encode()).hexdigest()
-            item["collage_url"] = f"/api/artists/collage?name={quote(item['name'])}&v={version}"
     return result
 
 
 @router.get("/catalog/initials")
 def catalog_initials(
     kind: str = Query(pattern="^(albums|artists|songs)$"), search: str = "", favorite: Optional[bool] = None,
+    page_size: int = Query(default=24, ge=1, le=200),
     catalog: Catalog = Depends(get_catalog),
 ) -> dict:
-    return {"items": catalog.list_catalog_initials(kind, search=search, favorite=favorite)}
+    values = catalog.list_catalog_values(kind, search=search, favorite=favorite)
+    pages: dict[str, int] = {}
+    for index, value in enumerate(values):
+        letter = value.strip()[:1].upper()
+        pages.setdefault(letter, index // page_size + 1)
+    return {"items": sorted(pages), "pages": pages}
 
 
 def get_artist_image_resolver(request: Request, catalog: Catalog = Depends(get_catalog)) -> ArtistImageResolver:

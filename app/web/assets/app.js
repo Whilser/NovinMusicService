@@ -168,8 +168,7 @@ function cover(item, className = "cover") {
   if (url) box.append(element("img", { src: url, alt: "", loading: "lazy" }));
   else box.append(element("span", { class: "cover-placeholder", attrs: { "aria-hidden": "true" } }, [icon("music", className === "row-cover" ? 20 : 42)]));
   if (!url && item.artist_image) {
-    if (item.artist_image_status === "missing" && item.collage_url) box.replaceChildren(element("img", { src: item.collage_url, alt: "", loading: "lazy" }));
-    else if (item.artist_image_status !== "missing") queueArtistImage(box, item.artist_image, item.album_covers || []);
+    deferArtistArtwork(box, item.artist_image, item.artist_image_status);
   }
   return box;
 }
@@ -178,14 +177,27 @@ function artistCollageUrl(artist) {
   return `${API}/artists/collage?${new URLSearchParams({ name: artist })}`;
 }
 
+function deferArtistArtwork(box, artist, imageStatus) {
+  const runWhenIdle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 0));
+  runWhenIdle(() => {
+    if (!box.isConnected) return;
+    if (imageStatus === "missing") {
+      box.replaceChildren(element("img", { src: artistCollageUrl(artist), alt: "", loading: "lazy" }));
+      return;
+    }
+    queueArtistImage(box, artist);
+  }, { timeout: 1200 });
+}
+
 const artistImageQueue = [];
 let artistImageRequests = 0;
-function queueArtistImage(box, artist, albumCovers) {
+function queueArtistImage(box, artist) {
   artistImageQueue.push(async () => {
+    if (!box.isConnected) return;
     try {
       const response = await fetch(`${API}/artists/image?${new URLSearchParams({ name: artist })}`);
       if (response.status === 204) {
-        if (albumCovers.length) box.replaceChildren(element("img", { src: artistCollageUrl(artist), alt: "", loading: "lazy" }));
+        if (box.isConnected) box.replaceChildren(element("img", { src: artistCollageUrl(artist), alt: "", loading: "lazy" }));
         return;
       }
       if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) return;
@@ -252,12 +264,12 @@ function pagination(total) {
   ]);
 }
 
-function alphabetIndex(items, field) {
+function alphabetIndex(items, field, pages = {}) {
   const available = new Set(items.map((item) => alphabetLetter(item[field])));
   const letters = CATALOG_ALPHABET.filter((letter) => available.has(letter));
   if (!letters.length) return null;
   return element("nav", { class: "alphabet-index", attrs: { "aria-label": "Быстрый переход по алфавиту" } }, letters.map((letter) => element("button", {
-    text: letter, dataset: { action: "alphabet-jump", letter }, attrs: { type: "button", "aria-label": `Перейти к букве ${letter}` }
+    text: letter, dataset: { action: "alphabet-jump", letter, page: String(pages[letter] || "") }, attrs: { type: "button", "aria-label": `Перейти к букве ${letter}` }
   })));
 }
 
@@ -290,12 +302,12 @@ async function renderHome() {
 }
 
 async function renderGroups(type) {
-  const allItems = await fetchAllGroups(type);
   const title = type === "albums" ? "Альбомы" : "Исполнители";
-  const filtered = state.search ? allItems.filter((item) => (item.name || "").toLowerCase().includes(state.search.toLowerCase())) : allItems;
-  const pageItems = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
-  if (!pageItems.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
-  else replace(dom.content, element("div", { class: "grid catalog-grid" }, pageItems.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(filtered.length), alphabetIndex(filtered, "name"));
+  const groupsQuery = new URLSearchParams({ page: String(state.page), page_size: String(PAGE_SIZE), search: state.search });
+  const initialsQuery = new URLSearchParams({ kind: type, search: state.search, page_size: String(PAGE_SIZE) });
+  const [result, initials] = await Promise.all([request(`/${type}?${groupsQuery}`), request(`/catalog/initials?${initialsQuery}`)]);
+  if (!result.items.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
+  else replace(dom.content, element("div", { class: "grid catalog-grid" }, result.items.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(result.total), alphabetIndex(initials.items.map((letter) => ({ letter })), "letter", initials.pages));
 }
 
 async function renderSongs(favorite = false) {
@@ -430,6 +442,8 @@ document.addEventListener("click", async (event) => {
   if (action === "retry") await render();
   else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus({ focusVisible: false }); }
   else if (action === "alphabet-jump") {
+    const page = Number(button.dataset.page);
+    if (page > 0) { state.page = page; await render(); document.querySelector("#main").focus({ focusVisible: false }); return; }
     const items = await alphabetItems();
     const field = state.route === "songs" || state.route === "favorites" ? "artist" : "name";
     const index = items.findIndex((item) => alphabetLetter(item[field]) === button.dataset.letter);
