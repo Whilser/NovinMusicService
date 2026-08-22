@@ -2,7 +2,7 @@
 
 **Требования:** R02, R03, R20i, R22i, R24i
 **Blocked by:** 02, 03, 04
-**Зона:** `Dockerfile` · `docker-compose.yml` · `scripts/` · `README.md` · `.env.example` · `tests/integration/`
+**Зона:** `Dockerfile` · `docker-compose.yml` · `scripts/` · `README.md` · `.env.example` · `.gitignore` · `tests/integration/` · `data/catalog.sqlite3` (удаление runtime artifact)
 **Волна:** 4
 **Status:** ready
 
@@ -27,5 +27,5 @@
 - [ ] `.env.example` содержит пустые `SMB_USERNAME`, `SMB_PASSWORD`, `MPD_PASSWORD` и безопасные несекретные значения
 - [ ] README по-русски объясняет build/up, первичную настройку, SMB guest/auth, MPD path mapping, backup и диагностику; предупреждает не публиковать порт в интернет
 - [ ] Интеграционные тесты запускаются без NAS/MPD, проверяют API, персистентность и отсутствие секретов
+- [ ] Runtime SQLite-файлы исключены из Git; случайно созданный `data/catalog.sqlite3` удалён из рабочей поставки
 - [ ] Полный тестовый прогон зелёный; Docker/Compose config проверены, если бинарники доступны
-

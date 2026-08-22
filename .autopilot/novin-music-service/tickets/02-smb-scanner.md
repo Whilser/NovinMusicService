@@ -2,7 +2,7 @@
 
 **Требования:** R01, R07, R08, R09, R10, R11, R17, R20i, R24i
 **Blocked by:** 01
-**Зона:** `app/scanner/` · `app/share/` · `app/api/scan.py` · `tests/scanner/`
+**Зона:** `app/scanner/` · `app/share/` · `app/api/scan.py` · `tests/scanner/` · `app/catalog/catalog.py` (только SMB allowlist)
 **Волна:** 2
 **Status:** ready
 
@@ -31,4 +31,3 @@
 - [ ] Снимок применяется одной транзакцией: новые добавляются, исчезнувшие удаляются вместе с зависимостями; ошибка до commit сохраняет старый индекс
 - [ ] Cover endpoint не принимает файловый путь клиента, даёт MIME/ETag и безопасную заглушку
 - [ ] Тесты используют временную библиотеку и fake subprocess, не требуют настоящего NAS или mount capability
-
