@@ -198,7 +198,7 @@ function pagination(total) {
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (pages === 1) return null;
   const visible = pages <= 7 ? Array.from({ length: pages }, (_, index) => index + 1) : state.page <= 4 ? [1, 2, 3, 4, "…", pages] : state.page >= pages - 3 ? [1, "…", pages - 3, pages - 2, pages - 1, pages] : [1, "…", state.page - 1, state.page, state.page + 1, "…", pages];
-  const pageLinks = visible.map((page) => page === "…" ? element("span", { class: "pagination-ellipsis", text: "…", attrs: { "aria-hidden": "true" } }) : element("button", { class: `page-number${page === state.page ? " active" : ""}`, text: String(page), disabled: page === state.page, dataset: { action: "page", page: String(page) }, attrs: { type: "button", "aria-label": `Страница ${page}`, "aria-current": page === state.page ? "page" : null }));
+  const pageLinks = visible.map((page) => page === "…" ? element("span", { class: "pagination-ellipsis", text: "…", attrs: { "aria-hidden": "true" } }) : element("button", { class: `page-number${page === state.page ? " active" : ""}`, text: String(page), disabled: page === state.page, dataset: { action: "page", page: String(page) }, attrs: { type: "button", "aria-label": `Страница ${page}`, "aria-current": page === state.page ? "page" : null } }));
   return element("nav", { class: "pagination", attrs: { "aria-label": "Страницы" } }, [
     element("button", { text: "Назад", disabled: state.page <= 1, dataset: { action: "page", page: String(state.page - 1) }, attrs: { type: "button" } }), ...pageLinks,
     element("button", { text: "Дальше", disabled: state.page >= pages, dataset: { action: "page", page: String(state.page + 1) }, attrs: { type: "button" } })
