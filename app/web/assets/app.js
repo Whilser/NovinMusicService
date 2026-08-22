@@ -404,7 +404,11 @@ async function renderPlaylist(id) {
 }
 
 function field(name, label, value, type = "text") { return element("label", {}, [element("span", { text: label }), element("input", { name, value: value || "", type, autocomplete: "off" })]); }
-function selectField(name, label, value, options) { return element("label", {}, [element("span", { text: label }), element("select", { name, value: value || String(DEFAULT_PAGE_SIZE) }, options.map((option) => element("option", { value: String(option), text: `${option} обложки` })))]); }
+function selectField(name, label, value, options) {
+  const select = element("select", { name }, options.map((option) => element("option", { value: String(option), text: `${option} обложки` })));
+  select.value = value || String(DEFAULT_PAGE_SIZE);
+  return element("label", {}, [element("span", { text: label }), select]);
+}
 function serviceHeading(title, tone, statusText) {
   return element("h2", { class: "service-heading" }, [element("span", { text: title }), element("span", { class: `service-status service-status--${tone}`, attrs: { role: "status", "aria-label": statusText } })]);
 }
