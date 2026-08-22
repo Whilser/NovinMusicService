@@ -134,8 +134,10 @@ class MpdClientTests(unittest.TestCase):
             client = MpdClient("127.0.0.1", server.port, timeout=0.5)
             client.play_stream("https://yp.shoutcast.com/sbin/tunein-station.pls?id=42")
             self.assertIn('add "https://yp.shoutcast.com/sbin/tunein-station.pls?id=42"', server.server.commands)
+            client.play_stream("https://stream.example.net/live")
+            self.assertIn('add "https://stream.example.net/live"', server.server.commands)
             with self.assertRaises(MpdCommandError):
-                client.play_stream("http://example.test/stream")
+                client.play_stream("http://127.0.0.1/stream")
 
     def test_transport_whitelist_maps_to_mpd_commands_and_returns_status(self):
         responses = {"status": ["state: pause", "OK"], "currentsong": ["OK"]}

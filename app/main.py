@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.catalog import router as catalog_router
 from app.catalog import Catalog, CatalogError, ConflictError, NotFoundError
-from app.radio import ShoutcastDirectory
+from app.radio import HybridRadioDirectory, RadioBrowserDirectory, ShoutcastDirectory
 
 
 def _error(code: str, message: str, details=None) -> dict:
@@ -30,7 +30,10 @@ def create_app(data_dir: Optional[Path] = None, music_root: Optional[Path] = Non
     application.state.catalog = Catalog(resolved_data_dir / "catalog.sqlite3")
     application.state.cover_dir = resolved_data_dir / "covers"
     application.state.music_root = Path(music_root or os.environ.get("NOVIN_MUSIC_ROOT", "/music"))
-    application.state.radio_directory = ShoutcastDirectory(resolved_data_dir / "shoutcast-cache.json")
+    application.state.radio_directory = HybridRadioDirectory(
+        ShoutcastDirectory(resolved_data_dir / "shoutcast-cache.json"),
+        RadioBrowserDirectory(resolved_data_dir / "radio-browser-cache.json"),
+    )
 
     @application.exception_handler(CatalogError)
     async def catalog_error_handler(request: Request, error: CatalogError) -> JSONResponse:

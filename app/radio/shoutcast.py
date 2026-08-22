@@ -62,7 +62,7 @@ class ShoutcastDirectory:
                 stations = self._stations(payload, bounded_limit)
             except (OSError, ValueError, UnicodeError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить каталог Shoutcast") from error
-            result = {"configured": True, "genres": list(DEFAULT_GENRES), "genre": normalized_genre, "stations": stations}
+            result = {"configured": True, "source": "shoutcast", "genres": list(DEFAULT_GENRES), "genre": normalized_genre, "stations": stations}
             self._memory[cache_key] = {"saved_at": self.clock(), "value": result}
             self._write_cache()
             return result

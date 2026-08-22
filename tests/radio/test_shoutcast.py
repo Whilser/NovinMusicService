@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.radio import ShoutcastDirectory
+from app.radio import HybridRadioDirectory, RadioBrowserDirectory, ShoutcastDirectory
 
 
 class ShoutcastDirectoryTests(unittest.TestCase):
@@ -35,3 +35,13 @@ class ShoutcastDirectoryTests(unittest.TestCase):
             restored = ShoutcastDirectory(cache_path, api_key="key", fetch=lambda _: self.fail("cache should be used"))
             self.assertEqual(restored.list_stations("Pop")["stations"][0]["id"], "42")
 
+    def test_keyless_radio_browser_catalog_is_used_by_the_hybrid_directory(self):
+        payload = [{"stationuuid": "8c0c551f-33bb-44cc-88dd-000000000001", "name": "Free Radio", "tags": "jazz", "url_resolved": "https://stream.example.net/live", "votes": 7, "bitrate": 128}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            browser = RadioBrowserDirectory(root / "browser.json", fetch=lambda _: json.dumps(payload).encode(), servers=lambda: ["https://de1.api.radio-browser.info"])
+            hybrid = HybridRadioDirectory(ShoutcastDirectory(root / "shoutcast.json", api_key=""), browser)
+            result = hybrid.list_stations("Jazz")
+            self.assertEqual(result["source"], "radio_browser")
+            self.assertEqual(result["stations"][0]["name"], "Free Radio")
+            self.assertEqual(hybrid.station("8c0c551f-33bb-44cc-88dd-000000000001")["bitrate"], 128)

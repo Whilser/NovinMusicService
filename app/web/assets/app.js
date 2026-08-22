@@ -336,15 +336,12 @@ async function renderRadio() {
   const query = new URLSearchParams({ genre: state.radioGenre, limit: "18" });
   if (state.search) query.set("search", state.search);
   const result = await request(`/radio?${query}`);
-  if (!result.configured) {
-    replace(dom.content, empty("Радио Shoutcast ещё не подключено", "Добавьте SHOUTCAST_API_KEY в .env на сервере novin и перезапустите сервис. Ключ нужен только для получения каталога станций и не хранится в базе."));
-    return;
-  }
+  const sourceLabel = result.source === "shoutcast" ? "SHOUTCAST · PARTNER API" : "RADIO BROWSER · ОТКРЫТЫЙ КАТАЛОГ";
   const genres = element("div", { class: "radio-genres", attrs: { "aria-label": "Жанры радио" } }, result.genres.map((genre) => element("button", {
     class: genre === result.genre ? "active" : "", text: genre, dataset: { action: "radio-genre", genre }, attrs: { type: "button" }
   })));
   const intro = element("section", { class: "radio-hero" }, [
-    element("p", { text: "SHOUTCAST" }), element("h2", { text: state.search ? `Результаты поиска: ${state.search}` : "Радио" }),
+    element("p", { text: sourceLabel }), element("h2", { text: state.search ? `Результаты поиска: ${state.search}` : "Радио" }),
     element("span", { text: "Выберите станцию — она будет загружена во временную очередь MPD." })
   ]);
   replace(dom.content, intro, genres, result.stations.length ? element("section", { class: "radio-section" }, [element("h2", { text: state.search ? "Станции" : `Станции: ${result.genre}` }), element("div", { class: "radio-grid" }, result.stations.map(radioCard))]) : empty("Станции не найдены", "Выберите другой жанр или измените запрос."));

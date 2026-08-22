@@ -8,17 +8,17 @@ from pydantic import BaseModel, Field
 
 from app.api.player import get_mpd_client
 from app.mpd import MpdCommandError, MpdConfigurationError, MpdConnectionError
-from app.radio import RadioDirectoryError, ShoutcastDirectory
+from app.radio import HybridRadioDirectory, RadioDirectoryError
 
 
 router = APIRouter()
 
 
 class RadioPlayInput(BaseModel):
-    station_id: str = Field(pattern=r"^\d{1,20}$")
+    station_id: str = Field(pattern=r"^[A-Za-z0-9-]{1,64}$")
 
 
-def get_radio_directory(request: Request) -> ShoutcastDirectory:
+def get_radio_directory(request: Request) -> HybridRadioDirectory:
     return request.app.state.radio_directory
 
 
@@ -29,18 +29,18 @@ def _error(status_code: int, code: str, message: str) -> JSONResponse:
 @router.get("/radio", response_model=None)
 def radio_catalog(
     genre: str = "Pop", search: str = "", limit: int = 18,
-    directory: ShoutcastDirectory = Depends(get_radio_directory),
+    directory: HybridRadioDirectory = Depends(get_radio_directory),
 ):
     try:
         return directory.list_stations(genre=genre, search=search, limit=limit)
     except RadioDirectoryError:
-        return _error(502, "radio_directory_unavailable", "Каталог Shoutcast временно недоступен")
+        return _error(502, "radio_directory_unavailable", "Каталог радио временно недоступен")
 
 
 @router.post("/radio/play", response_model=None)
 def play_radio(
     body: RadioPlayInput,
-    directory: ShoutcastDirectory = Depends(get_radio_directory),
+    directory: HybridRadioDirectory = Depends(get_radio_directory),
     client=Depends(get_mpd_client),
 ):
     station = directory.station(body.station_id)

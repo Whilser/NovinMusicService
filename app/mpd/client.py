@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import socket
+from ipaddress import ip_address
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Optional
 from urllib.parse import urlparse
@@ -186,7 +187,20 @@ class MpdClient:
         if not isinstance(stream_url, str) or len(stream_url) > 2048 or any(ord(char) < 32 for char in stream_url):
             raise MpdCommandError("invalid radio stream URL")
         parsed = urlparse(stream_url)
-        if parsed.scheme != "https" or parsed.netloc != "yp.shoutcast.com" or not parsed.path.endswith(".pls"):
-            raise MpdCommandError("radio stream URL is not an allowed Shoutcast playlist")
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise MpdCommandError("invalid radio stream URL") from error
+        hostname = (parsed.hostname or "").lower()
+        if parsed.scheme not in {"http", "https"} or not hostname or parsed.username or parsed.password or (port is not None and not 1 <= port <= 65535):
+            raise MpdCommandError("radio stream URL is not allowed")
+        if hostname == "localhost" or hostname.endswith(".localhost") or hostname.endswith(".local"):
+            raise MpdCommandError("radio stream URL is not allowed")
+        try:
+            address = ip_address(hostname)
+            if address.is_private or address.is_loopback or address.is_link_local or address.is_multicast or address.is_reserved or address.is_unspecified:
+                raise MpdCommandError("radio stream URL is not allowed")
+        except ValueError:
+            pass
         self._run(["clear", "add {}".format(_quote(stream_url)), "play"])
         return self.status()
