@@ -14,7 +14,7 @@ TRACK_FIELDS = (
 )
 ALLOWED_SETTINGS = frozenset(
     {
-        "smb_host", "smb_share", "smb_username", "smb_mount_path",
+        "smb_host", "smb_share", "smb_username", "smb_mount_path", "smb_domain", "smb_options",
         "mpd_host", "mpd_port", "mpd_uri_prefix",
     }
 )
