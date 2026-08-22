@@ -202,8 +202,27 @@ def apply_share(
 
 
 @router.get("/share/status")
-def share_status(manager: ShareManager = Depends(get_share_manager)) -> dict:
-    return manager.status()
+def share_status(
+    manager: ShareManager = Depends(get_share_manager),
+    catalog: Catalog = Depends(get_catalog),
+) -> dict:
+    current = manager.status()
+    if current.get("state") != "not_configured":
+        return current
+    saved = catalog.get_settings()
+    if not saved.get("smb_host") or not saved.get("smb_share"):
+        return current
+    try:
+        return manager.apply(
+            {
+                "host": saved["smb_host"],
+                "share": saved["smb_share"],
+                "domain": saved.get("smb_domain", ""),
+                "options": saved.get("smb_options", ""),
+            }
+        )
+    except ShareError as error:
+        return {"state": "error", "message": str(error)}
 
 
 _PLACEHOLDER = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#eee"/></svg>'
