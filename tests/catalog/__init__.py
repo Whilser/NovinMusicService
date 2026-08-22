@@ -1,0 +1,1 @@
+"""Catalog boundary tests."""
