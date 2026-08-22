@@ -63,11 +63,11 @@ class RadioBrowserDirectory:
                     if len(stations) < bounded_limit:
                         stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/lastclick/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
                 else:
-                    genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
-                    # Radio Browser defaults to partial tag matching.  Its
-                    # tagExact flag keeps the category badges genuinely scoped
-                    # to the selected genre.
-                    parameters["tagExact"] = "true"
+                    # Radio Browser exposes exact genre matching as its own
+                    # endpoint.  ``bytag`` does a partial substring match,
+                    # which made different badges visibly return the same
+                    # stations.
+                    genre_path = f"/json/stations/bytagexact/{quote(normalized_genre, safe='')}"
                     stations = self._stations(self._payload(genre_path, parameters), bounded_limit)
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error
