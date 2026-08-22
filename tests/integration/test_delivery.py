@@ -95,6 +95,12 @@ class DeliveryIntegrationTests(unittest.TestCase):
             override["services"]["novin-music"]["security_opt"],
         )
 
+    def test_image_creates_configured_tmpdir_before_package_install(self):
+        dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+        create_tmpdir = dockerfile.index("RUN mkdir -p /run/novin")
+        package_install = dockerfile.index("apt-get install")
+        self.assertLess(create_tmpdir, package_install)
+
     @unittest.skipUnless(DOCKER, "Docker CLI unavailable: compose config was not executed")
     def test_docker_compose_config_is_structurally_valid(self):
         completed = subprocess.run(
