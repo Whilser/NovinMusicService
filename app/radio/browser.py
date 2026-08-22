@@ -120,7 +120,11 @@ class RadioBrowserDirectory:
 
     @staticmethod
     def _fetch(url: str) -> bytes:
-        request = Request(url, headers={"User-Agent": "NovinMusicService/1.0"})
+        request = Request(url, headers={
+            "User-Agent": "NovinMusicService/1.0",
+            "Accept": "*/*",
+            "Connection": "close",
+        })
         with urlopen(request, timeout=5) as response:  # nosec B310: server is validated above
             payload = response.read(_MAX_RESPONSE_BYTES + 1)
         if len(payload) > _MAX_RESPONSE_BYTES:
