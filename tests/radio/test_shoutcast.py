@@ -57,5 +57,5 @@ class ShoutcastDirectoryTests(unittest.TestCase):
             )
             catalog.list_stations("Rock")
             catalog.list_stations("Rock", refresh=True)
-            self.assertEqual(len(calls), 2)
-            self.assertTrue(all("/bytagexact/Rock?" in url for url in calls))
+            self.assertEqual(len(calls), 4)
+            self.assertTrue(all("/bytag/Rock?" in url or "/topclick/8?" in url for url in calls))

@@ -63,12 +63,18 @@ class RadioBrowserDirectory:
                     if len(stations) < bounded_limit:
                         stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/lastclick/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
                 else:
-                    # Radio Browser exposes exact genre matching as its own
-                    # endpoint.  ``bytag`` does a partial substring match,
-                    # which made different badges visibly return the same
-                    # stations.
-                    genre_path = f"/json/stations/bytagexact/{quote(normalized_genre, safe='')}"
-                    stations = self._stations(self._payload(genre_path, parameters), bounded_limit)
+                    # The exact endpoint compares the complete comma-separated
+                    # tag string and therefore drops almost every useful
+                    # station.  Use the tag endpoint, then do an exact match
+                    # against individual tags ourselves.
+                    genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
+                    stations = self._filter_genre(self._stations(self._payload(genre_path, parameters), bounded_limit), normalized_genre)
+                    # A small popular-stations supplement avoids an empty
+                    # screen when a mirror has a shallow genre index, while
+                    # retaining only stations with the selected tag.
+                    if len(stations) < bounded_limit:
+                        popular = self._filter_genre(self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), 8), normalized_genre)
+                        stations = self._merge_stations(stations, popular, limit=bounded_limit)
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error
             result = {"configured": True, "source": "radio_browser", "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": stations}
@@ -100,6 +106,14 @@ class RadioBrowserDirectory:
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 last_error = error
         raise RadioDirectoryError("all Radio Browser servers failed") from last_error
+
+    @staticmethod
+    def _filter_genre(stations: list[dict[str, Any]], genre: str) -> list[dict[str, Any]]:
+        wanted = genre.casefold()
+        return [
+            station for station in stations
+            if wanted in {tag.strip().casefold() for tag in str(station.get("genre", "")).split(",") if tag.strip()}
+        ]
 
     @staticmethod
     def _safe_server(value: str) -> bool:
