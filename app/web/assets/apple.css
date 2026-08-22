@@ -9,7 +9,7 @@
 }
 
 body {
-  background: #fff;
+  background: radial-gradient(circle at 78% -12%, rgba(250, 45, 72, .1) 0, rgba(250, 45, 72, .035) 18rem, transparent 34rem), #fff;
   letter-spacing: -.012em;
 }
 
