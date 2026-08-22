@@ -56,6 +56,7 @@ const ICON_PATHS = {
   close: [["path", { d: "m6 6 12 12M18 6 6 18" }]],
   up: [["path", { d: "m6 15 6-6 6 6" }]],
   down: [["path", { d: "m6 9 6 6 6-6" }]],
+  back: [["path", { d: "m14.5 5-7 7 7 7" }]],
   star: [["path", { d: "m12 3 2.8 5.8 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.7l6.2-.9Z" }]],
   more: [["circle", { cx: "5", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }], ["circle", { cx: "12", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }], ["circle", { cx: "19", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }]]
 };
@@ -249,6 +250,7 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
   dom.title.textContent = name;
   const representative = items[0] || { album: name, artist: albumArtist };
   const subtitle = type === "album" ? (albumArtist || representative.artist || "Неизвестный исполнитель") : "Исполнитель";
+  const listRoute = type === "album" ? "albums" : "artists";
   const detail = element("section", { class: "detail-hero" }, [
     cover(representative, "detail-cover"),
     element("div", { class: "detail-copy" }, [
@@ -259,7 +261,8 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
       element("div", { class: "detail-actions" }, playButtons(items))
     ])
   ]);
-  replace(dom.content, detail, items.length ? trackList(items, { compact: true }) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
+  const back = element("button", { class: "detail-back", dataset: { action: "back-group", route: listRoute }, attrs: { type: "button", "aria-label": `Назад к списку: ${listRoute === "albums" ? "альбомы" : "исполнители"}` } }, [icon("back", 26)]);
+  replace(dom.content, element("div", { class: "detail-toolbar" }, [back]), detail, items.length ? trackList(items, { compact: true }) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
 }
 
 async function renderPlaylists() {
@@ -339,6 +342,7 @@ document.addEventListener("click", async (event) => {
   await withButtonBusy(button, async () => { const action = button.dataset.action;
   if (action === "retry") await render();
   else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus(); }
+  else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route); if (location.hash === next) await render(); else location.hash = next; }
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
