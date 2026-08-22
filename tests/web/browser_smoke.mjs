@@ -182,6 +182,10 @@ try {
   assert.equal(await desktop.getByRole("status", { name: "MPD: не настроен" }).count(), 1);
   await desktop.goto(`${origin}/#/artists?name=Artist+A`);
   await waitForRoute(desktop, "#/artists?name=Artist+A", "Artist A", '[data-track-id="1"]');
+  requests.splice(0);
+  await desktop.locator('[data-track-id="3"]').getByRole("button", { name: "Воспроизвести" }).click();
+  await waitFor(() => requests.some((item) => item.path === "/api/player/play"));
+  assert.deepEqual(requests.at(-1).body, { track_ids: [3, 1], shuffle: false });
   await desktop.reload();
   await waitForRoute(desktop, "#/artists?name=Artist+A", "Artist A", '[data-track-id="1"]');
   await desktop.goBack(); await desktop.goForward();

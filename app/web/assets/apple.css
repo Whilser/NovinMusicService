@@ -179,6 +179,19 @@ button svg, a svg { display: block; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
 .detail-actions button { color: var(--accent); background: #ededee; }
 .detail-actions button:hover { background: #e5e5e6; }
+.detail-actions .media-action:not(.secondary), .detail-actions .media-action:not(.secondary):hover {
+  color: #fff;
+  background: var(--accent);
+}
+.detail-actions .media-action:not(.secondary):hover {
+  animation: play-prism 2.4s ease-in-out infinite;
+}
+
+@keyframes play-prism {
+  0%, 100% { box-shadow: 0 0 0 2px #ff4b7099, 0 0 12px #ff4b7073, 0 0 22px #ffb84d50; }
+  33% { box-shadow: 0 0 0 2px #b875ff99, 0 0 12px #b875ff73, 0 0 22px #40d6ff50; }
+  66% { box-shadow: 0 0 0 2px #42d8b899, 0 0 12px #42d8b873, 0 0 22px #ffe44d50; }
+}
 
 .settings-grid { gap: 16px; }
 .settings-card { border-color: #e2e2e4; border-radius: 13px; background: #fafafa; box-shadow: none; }

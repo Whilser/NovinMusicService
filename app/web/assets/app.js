@@ -415,7 +415,7 @@ async function redrawCurrent() {
 async function play(ids, shuffle = false) { try { await request("/player/play", { method: "POST", body: JSON.stringify({ track_ids: ids.map(Number), shuffle }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
 async function playFromTrack(id) {
   const trackId = Number(id);
-  if (state.selected?.type !== "album") return play([trackId]);
+  if (!state.selected || !["album", "artist"].includes(state.selected.type)) return play([trackId]);
   const index = state.tracks.findIndex((track) => track.id === trackId);
   return play((index < 0 ? [trackId] : state.tracks.slice(index).map((track) => track.id)));
 }
