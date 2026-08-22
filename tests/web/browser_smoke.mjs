@@ -224,22 +224,27 @@ try {
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   for (const label of ["Исполнители", "Избранное"]) assert.equal(await mobile.getByRole("link", { name: new RegExp(label) }).isVisible(), true);
   assert.equal(await mobile.getByRole("button", { name: "4 из 5" }).first().isVisible(), true);
-  assert.equal(await mobile.getByLabel("Позиция воспроизведения").isVisible(), true);
-  assert.equal(await mobile.getByLabel("Громкость").isVisible(), true);
+  assert.equal(await mobile.getByLabel("Позиция воспроизведения", { exact: true }).isVisible(), true);
+  assert.equal(await mobile.getByLabel("Громкость", { exact: true }).isVisible(), true);
   assert.equal(await mobile.locator("#player").getByLabel("Воспроизвести").isDisabled(), true);
-  assert.equal(await mobile.getByLabel("Позиция воспроизведения").getAttribute("aria-disabled"), "true");
+  assert.equal(await mobile.getByLabel("Позиция воспроизведения", { exact: true }).getAttribute("aria-disabled"), "true");
   player = { online: true, state: "play", elapsed: 12, duration: 180, volume: 35, song: { id: 1, file: "new.flac", title: hostile, artist: "Artist A" } };
   await mobile.waitForFunction(() => !document.querySelector('#player [data-command="pause"]')?.disabled && Boolean(document.querySelector("#player-cover img[src='/api/covers/cover-a']")));
   assert.equal(await mobile.locator("#player").getByLabel("Пауза").isDisabled(), false);
   assert.equal(await mobile.locator("#player-cover img[src='/api/covers/cover-a']").count(), 1);
+  await mobile.locator("#player-cover").click();
+  assert.equal(await mobile.locator("#fullscreen-player").isVisible(), true);
+  assert.equal(await mobile.locator("#fullscreen-cover img[src='/api/covers/cover-a']").count(), 1);
+  await mobile.keyboard.press("Escape");
+  assert.equal(await mobile.locator("#fullscreen-player").isVisible(), false);
   await mobile.locator('[data-track-id="3"]').getByRole("button", { name: "Воспроизвести" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 1);
   await mobile.getByRole("button", { name: "Воспроизвести все" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 2);
   await mobile.getByRole("button", { name: "Перемешать" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/play").length === 3);
   await mobile.locator("#player").getByRole("button", { name: "Предыдущий трек" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 1);
   await mobile.locator("#player").getByRole("button", { name: "Следующий трек" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 2);
   await mobile.locator("#player").getByRole("button", { name: "Пауза" }).click(); await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 3);
-  await mobile.getByLabel("Позиция воспроизведения").fill("42");
-  await mobile.getByLabel("Громкость").fill("55");
+  await mobile.getByLabel("Позиция воспроизведения", { exact: true }).fill("42");
+  await mobile.getByLabel("Громкость", { exact: true }).fill("55");
   await waitFor(() => requests.filter((item) => item.path === "/api/player/command").length === 5);
   assert.deepEqual(requests.filter((item) => item.path === "/api/player/play").map((item) => item.body), [
     { track_ids: [3], shuffle: false },

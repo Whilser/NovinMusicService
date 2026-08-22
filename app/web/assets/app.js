@@ -19,7 +19,10 @@ const dom = {
   playerState: document.querySelector("#player-state"), elapsed: document.querySelector("#elapsed"),
   duration: document.querySelector("#duration"), seek: document.querySelector("#seek"),
   volume: document.querySelector("#volume"), dialog: document.querySelector("#playlist-dialog"),
-  dialogTitle: document.querySelector("#dialog-title"), playlistName: document.querySelector("#playlist-name"),
+  dialogTitle: document.querySelector("#dialog-title"), playlistName: document.querySelector("#playlist-name"), fullscreen: document.querySelector("#fullscreen-player"),
+  fullscreenBackdrop: document.querySelector("#fullscreen-backdrop"), fullscreenCover: document.querySelector("#fullscreen-cover"), fullscreenTitle: document.querySelector("#fullscreen-title"),
+  fullscreenArtist: document.querySelector("#fullscreen-artist"), fullscreenElapsed: document.querySelector("#fullscreen-elapsed"), fullscreenDuration: document.querySelector("#fullscreen-duration"),
+  fullscreenSeek: document.querySelector("#fullscreen-seek"), fullscreenVolume: document.querySelector("#fullscreen-volume"), fullscreenPlay: document.querySelector("#fullscreen-play"),
   playlistSave: document.querySelector("#playlist-save")
 };
 
@@ -176,12 +179,13 @@ function albumCard(item, type = "album") {
 function trackRow(track, options = {}) {
   const row = element("article", { class: `track-row${options.compact ? " compact" : ""}`, dataset: { trackId: String(track.id) } });
   const image = cover(track, "row-cover");
+  const playOne = iconButton("Воспроизвести", "play", "play-one", { id: String(track.id) }); playOne.classList.add("track-play");
   const info = element("div", { class: "track-title" }, [element("strong", { text: track.title || "Без названия" }), element("span", { text: track.artist || "Неизвестный исполнитель" })]);
-  row.append(image, info, element("span", { class: "track-album", text: track.album || "Неизвестный альбом" }));
+  row.append(image, playOne, info, element("span", { class: "track-album", text: track.album || "Неизвестный альбом" }));
   const rating = element("div", { class: "rating", attrs: { "aria-label": `Оценка ${track.title}` } });
   for (let value = 1; value <= 5; value += 1) rating.append(element("button", { class: value <= (track.rating || 0) ? "active" : "", dataset: { action: "rate", value: String(value), id: String(track.id) }, attrs: { type: "button", "aria-label": `${value} из 5` } }, [icon("star", 14, value <= (track.rating || 0))]));
   row.append(rating, iconButton(track.favorite ? "Убрать из избранного" : "Добавить в избранное", "heart", "favorite", { id: String(track.id), active: String(!track.favorite) }, Boolean(track.favorite)));
-  const actions = element("div", { class: "reorder" }, [iconButton("Воспроизвести", "play", "play-one", { id: String(track.id) })]);
+  const actions = element("div", { class: "reorder" });
   if (options.playlistId) {
     actions.append(iconButton("Выше", "up", "move-track", { id: String(track.id), direction: "up" }), iconButton("Ниже", "down", "move-track", { id: String(track.id), direction: "down" }), iconButton("Удалить из плейлиста", "close", "remove-track", { id: String(track.id), playlistId: String(options.playlistId) }));
   } else actions.append(iconButton("Добавить в плейлист", "plus", "add-to-playlist", { id: String(track.id) }));
@@ -379,6 +383,16 @@ window.addEventListener("hashchange", async () => { const next = locationFromHas
 document.querySelector(".transport").addEventListener("click", async (event) => { const button = event.target.closest("[data-command]"); if (!button) return; await withButtonBusy(button, async () => { const name = button.dataset.command === "play" && state.player?.state === "play" ? "pause" : button.dataset.command; await command(name); }); });
 dom.seek.addEventListener("change", () => command("seek", { position: Number(dom.seek.value) }));
 dom.volume.addEventListener("change", () => command("volume", { volume: Number(dom.volume.value) }));
+dom.playerCover.addEventListener("click", openFullscreenPlayer);
+document.querySelector("#fullscreen-close").addEventListener("click", closeFullscreenPlayer);
+dom.fullscreenBackdrop.addEventListener("click", closeFullscreenPlayer);
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !dom.fullscreen.hidden) closeFullscreenPlayer(); });
+dom.fullscreen.querySelector(".fullscreen-controls").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-fullscreen-command]"); if (!button) return;
+  await withButtonBusy(button, async () => { const name = button.dataset.fullscreenCommand === "play" && state.player?.state === "play" ? "pause" : button.dataset.fullscreenCommand; await command(name); });
+});
+dom.fullscreenSeek.addEventListener("change", () => command("seek", { position: Number(dom.fullscreenSeek.value) }));
+dom.fullscreenVolume.addEventListener("change", () => command("volume", { volume: Number(dom.fullscreenVolume.value) }));
 
 async function resolvePlayerTrack(song) {
   if (!song) return null;
@@ -388,6 +402,25 @@ async function resolvePlayerTrack(song) {
     || null;
 }
 
+function setFullscreenCover(url) {
+  replace(dom.fullscreenCover); replace(dom.fullscreenBackdrop);
+  if (!url) { dom.fullscreenCover.append(icon("music", 88)); return; }
+  dom.fullscreenCover.append(element("img", { src: url, alt: "" }));
+  dom.fullscreenBackdrop.append(element("img", { src: url, alt: "" }));
+}
+function updateFullscreenPlayer(player, track) {
+  const song = player?.song; const online = Boolean(player?.online); const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0);
+  dom.fullscreenTitle.textContent = song?.title || song?.file || "Ничего не играет";
+  dom.fullscreenArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
+  dom.fullscreenElapsed.textContent = formatTime(elapsed); dom.fullscreenDuration.textContent = formatTime(duration);
+  dom.fullscreenSeek.max = String(Math.max(1, duration)); dom.fullscreenSeek.value = String(Math.min(elapsed, duration || 1)); dom.fullscreenVolume.value = String(Number(player?.volume || 0));
+  replace(dom.fullscreenPlay, icon(player?.state === "play" ? "pause" : "play", 28)); dom.fullscreenPlay.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
+  for (const control of [...dom.fullscreen.querySelectorAll("[data-fullscreen-command]"), dom.fullscreenSeek, dom.fullscreenVolume]) control.disabled = !online;
+  setFullscreenCover(track ? coverUrl(track) : "");
+}
+function openFullscreenPlayer() { dom.fullscreen.hidden = false; document.body.classList.add("fullscreen-open"); document.querySelector("#fullscreen-close").focus(); }
+function closeFullscreenPlayer() { dom.fullscreen.hidden = true; document.body.classList.remove("fullscreen-open"); dom.playerCover.focus(); }
+
 async function updatePlayer(player) {
   state.player = player; const online = Boolean(player?.online); dom.player.classList.toggle("online", online); dom.player.classList.toggle("offline", !online); dom.playerState.textContent = online ? (player.state === "play" ? "Играет" : "Пауза") : "Не в сети";
   const song = player?.song; dom.playerTitle.textContent = song?.title || song?.file || "Ничего не играет"; dom.playerArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
@@ -395,6 +428,7 @@ async function updatePlayer(player) {
   for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { const disabled = !online || control.dataset.busy === "true"; control.disabled = disabled; control.setAttribute("aria-disabled", String(disabled)); }
   const toggle = document.querySelector(".play-toggle"); replace(toggle, icon(player?.state === "play" ? "pause" : "play", 17)); toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
   replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.append(icon("music", 20));
+  updateFullscreenPlayer(player, track);
 }
 async function pollPlayer() { try { await updatePlayer(await request("/player/status")); } catch { await updatePlayer({ online: false }); } }
 
