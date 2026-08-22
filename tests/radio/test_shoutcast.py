@@ -12,7 +12,7 @@ class ShoutcastDirectoryTests(unittest.TestCase):
             catalog = ShoutcastDirectory(Path(directory) / "radio.json", api_key="")
             result = catalog.list_stations()
             self.assertFalse(result["configured"])
-            self.assertEqual(result["genre"], "Pop")
+            self.assertEqual(result["genre"], "All")
             self.assertIn("Rock", result["genres"])
 
     def test_directory_sanitizes_and_persists_a_cached_station(self):

@@ -10,7 +10,7 @@ const routes = [
 ];
 const mobileRoutes = routes;
 const initialLocation = locationFromHash();
-const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "Pop" };
+const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "All" };
 if (!location.hash) history.replaceState(null, "", "#/home");
 const dom = {
   content: document.querySelector("#content"), title: document.querySelector("#page-title"),
@@ -338,13 +338,14 @@ async function renderRadio() {
   const result = await request(`/radio?${query}`);
   const sourceLabel = result.source === "shoutcast" ? "SHOUTCAST · PARTNER API" : "RADIO BROWSER · ОТКРЫТЫЙ КАТАЛОГ";
   const genres = element("div", { class: "radio-genres", attrs: { "aria-label": "Жанры радио" } }, result.genres.map((genre) => element("button", {
-    class: genre === result.genre ? "active" : "", text: genre, dataset: { action: "radio-genre", genre }, attrs: { type: "button" }
+    class: genre === result.genre ? "active" : "", text: genre === "All" ? "Все" : genre, dataset: { action: "radio-genre", genre }, attrs: { type: "button" }
   })));
   const intro = element("section", { class: "radio-hero" }, [
     element("p", { text: sourceLabel }), element("h2", { text: state.search ? `Результаты поиска: ${state.search}` : "Радио" }),
     element("span", { text: "Выберите станцию — она будет загружена во временную очередь MPD." })
   ]);
-  replace(dom.content, intro, genres, result.stations.length ? element("section", { class: "radio-section" }, [element("h2", { text: state.search ? "Станции" : `Станции: ${result.genre}` }), element("div", { class: "radio-grid" }, result.stations.map(radioCard))]) : empty("Станции не найдены", "Выберите другой жанр или измените запрос."));
+  const sectionTitle = result.genre === "All" ? "Все станции" : `Станции: ${result.genre}`;
+  replace(dom.content, intro, genres, result.stations.length ? element("section", { class: "radio-section" }, [element("h2", { text: state.search ? "Станции" : sectionTitle }), element("div", { class: "radio-grid" }, result.stations.map(radioCard))]) : empty("Станции не найдены", "Выберите другой жанр или измените запрос."));
 }
 
 async function renderSongs(favorite = false) {

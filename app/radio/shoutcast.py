@@ -15,6 +15,7 @@ class RadioDirectoryError(Exception):
 
 
 DEFAULT_GENRES = ("Pop", "Rock", "Dance", "Hip Hop", "Jazz", "Classical", "Electronic", "Chillout")
+RADIO_GENRES = ("All", *DEFAULT_GENRES)
 _CACHE_TTL_SECONDS = 15 * 60
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
@@ -40,29 +41,31 @@ class ShoutcastDirectory:
     def configured(self) -> bool:
         return bool(self.api_key)
 
-    def list_stations(self, genre: str = "Pop", search: str = "", limit: int = 18) -> dict[str, Any]:
-        normalized_genre = self._clean_text(genre, 48) or DEFAULT_GENRES[0]
+    def list_stations(self, genre: str = "All", search: str = "", limit: int = 18) -> dict[str, Any]:
+        normalized_genre = self._clean_text(genre, 48) or "All"
+        if normalized_genre.casefold() == "all":
+            normalized_genre = "All"
         normalized_search = self._clean_text(search, 100)
         bounded_limit = max(1, min(int(limit), 40))
         if not self.configured:
-            return {"configured": False, "genres": list(DEFAULT_GENRES), "genre": normalized_genre, "stations": []}
+            return {"configured": False, "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": []}
         cache_key = f"{normalized_genre.casefold()}|{normalized_search.casefold()}|{bounded_limit}"
         with self._lock:
             cached = self._load_cached(cache_key)
             if cached is not None:
                 return cached
-            command = "stationsearch" if normalized_search else "genresearch"
+            command = "stationsearch" if normalized_search or normalized_genre == "All" else "genresearch"
             params = {"k": self.api_key, "f": "json", "limit": str(bounded_limit)}
             if normalized_search:
                 params["search"] = normalized_search
-            else:
+            elif normalized_genre != "All":
                 params["genre"] = normalized_genre
             try:
                 payload = self._decode(self.fetch(f"https://api.shoutcast.com/legacy/{command}?{urlencode(params)}"))
                 stations = self._stations(payload, bounded_limit)
             except (OSError, ValueError, UnicodeError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить каталог Shoutcast") from error
-            result = {"configured": True, "source": "shoutcast", "genres": list(DEFAULT_GENRES), "genre": normalized_genre, "stations": stations}
+            result = {"configured": True, "source": "shoutcast", "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": stations}
             self._memory[cache_key] = {"saved_at": self.clock(), "value": result}
             self._write_cache()
             return result

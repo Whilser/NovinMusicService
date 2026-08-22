@@ -7,7 +7,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from .shoutcast import DEFAULT_GENRES, RadioDirectoryError
@@ -15,6 +15,9 @@ from .shoutcast import DEFAULT_GENRES, RadioDirectoryError
 
 _CACHE_TTL_SECONDS = 15 * 60
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+_UPSTREAM_LIMIT = 8
+ALL_GENRE = "All"
+RADIO_GENRES = (ALL_GENRE, *DEFAULT_GENRES)
 
 
 class RadioBrowserDirectory:
@@ -34,8 +37,10 @@ class RadioBrowserDirectory:
         self._lock = threading.RLock()
         self._memory: dict[str, dict[str, Any]] = {}
 
-    def list_stations(self, genre: str = "Pop", search: str = "", limit: int = 18) -> dict[str, Any]:
-        normalized_genre = self._clean_text(genre, 48) or DEFAULT_GENRES[0]
+    def list_stations(self, genre: str = ALL_GENRE, search: str = "", limit: int = 18) -> dict[str, Any]:
+        normalized_genre = self._clean_text(genre, 48) or ALL_GENRE
+        if normalized_genre.casefold() == ALL_GENRE.casefold():
+            normalized_genre = ALL_GENRE
         normalized_search = self._clean_text(search, 100)
         bounded_limit = max(1, min(int(limit), 40))
         cache_key = f"{normalized_genre.casefold()}|{normalized_search.casefold()}|{bounded_limit}"
@@ -43,20 +48,22 @@ class RadioBrowserDirectory:
             cached = self._load_cached(cache_key)
             if cached is not None:
                 return cached
-            parameters = {"limit": str(bounded_limit), "hidebroken": "true", "order": "votes", "reverse": "true"}
-            if normalized_search:
-                parameters["name"] = normalized_search
-            else:
-                parameters["tag"] = normalized_genre
             try:
-                station_url = self._station_url(parameters)
-                payload = json.loads(self.fetch(station_url).decode("utf-8"))
-                if not isinstance(payload, list):
-                    raise RadioDirectoryError("invalid Radio Browser response")
-                stations = self._stations(payload, bounded_limit)
+                parameters = {"limit": str(min(bounded_limit, _UPSTREAM_LIMIT)), "hidebroken": "true", "order": "votes", "reverse": "true"}
+                if normalized_search:
+                    parameters["name"] = normalized_search
+                    stations = self._stations(self._payload("/json/stations/search", parameters), bounded_limit)
+                elif normalized_genre == ALL_GENRE:
+                    stations = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), bounded_limit)
+                else:
+                    genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
+                    stations = self._stations(self._payload(genre_path, parameters), bounded_limit)
+                    if len(stations) < _UPSTREAM_LIMIT:
+                        popular = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), _UPSTREAM_LIMIT)
+                        stations = self._merge_stations(stations, popular, limit=bounded_limit)
             except (OSError, ValueError, UnicodeError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error
-            result = {"configured": True, "source": "radio_browser", "genres": list(DEFAULT_GENRES), "genre": normalized_genre, "stations": stations}
+            result = {"configured": True, "source": "radio_browser", "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": stations}
             self._memory[cache_key] = {"saved_at": self.clock(), "value": result}
             self._write_cache()
             return result
@@ -70,11 +77,21 @@ class RadioBrowserDirectory:
                         return station
         return None
 
-    def _station_url(self, parameters: dict[str, str]) -> str:
+    def _payload(self, path: str, parameters: dict[str, str]) -> list[Any]:
         servers = [server.rstrip("/") for server in self.servers() if self._safe_server(server)]
         if not servers:
             raise RadioDirectoryError("no Radio Browser server available")
-        return f"{random.choice(servers)}/json/stations/search?{urlencode(parameters)}"
+        random.shuffle(servers)
+        last_error: Exception | None = None
+        for server in servers:
+            try:
+                payload = json.loads(self.fetch(f"{server}{path}?{urlencode(parameters)}").decode("utf-8"))
+                if isinstance(payload, list):
+                    return payload
+                raise RadioDirectoryError("invalid Radio Browser response")
+            except (OSError, ValueError, UnicodeError, RadioDirectoryError) as error:
+                last_error = error
+        raise RadioDirectoryError("all Radio Browser servers failed") from last_error
 
     @staticmethod
     def _safe_server(value: str) -> bool:
@@ -96,7 +113,10 @@ class RadioBrowserDirectory:
                     names.append(name)
         except OSError:
             pass
-        return [f"https://{name}" for name in names] or ["https://de1.api.radio-browser.info"]
+        for fallback in ("de2.api.radio-browser.info", "de1.api.radio-browser.info"):
+            if fallback not in names:
+                names.append(fallback)
+        return [f"https://{name}" for name in names]
 
     @staticmethod
     def _fetch(url: str) -> bytes:
@@ -129,6 +149,21 @@ class RadioBrowserDirectory:
             if len(stations) >= limit:
                 break
         return stations
+
+    @staticmethod
+    def _merge_stations(*groups: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+        seen: set[str] = set()
+        merged: list[dict[str, Any]] = []
+        for group in groups:
+            for station in group:
+                station_id = str(station.get("id", ""))
+                if not station_id or station_id in seen:
+                    continue
+                seen.add(station_id)
+                merged.append(station)
+                if len(merged) >= limit:
+                    return merged
+        return merged
 
     @staticmethod
     def _stream_url(value: Any) -> str | None:

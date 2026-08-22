@@ -28,7 +28,7 @@ def _error(status_code: int, code: str, message: str) -> JSONResponse:
 
 @router.get("/radio", response_model=None)
 def radio_catalog(
-    genre: str = "Pop", search: str = "", limit: int = 18,
+    genre: str = "All", search: str = "", limit: int = 18,
     directory: HybridRadioDirectory = Depends(get_radio_directory),
 ):
     try:
