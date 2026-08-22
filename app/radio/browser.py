@@ -37,17 +37,20 @@ class RadioBrowserDirectory:
         self._lock = threading.RLock()
         self._memory: dict[str, dict[str, Any]] = {}
 
-    def list_stations(self, genre: str = ALL_GENRE, search: str = "", limit: int = 18) -> dict[str, Any]:
+    def list_stations(self, genre: str = ALL_GENRE, search: str = "", limit: int = 18, refresh: bool = False) -> dict[str, Any]:
         normalized_genre = self._clean_text(genre, 48) or ALL_GENRE
         if normalized_genre.casefold() == ALL_GENRE.casefold():
             normalized_genre = ALL_GENRE
         normalized_search = self._clean_text(search, 100)
         bounded_limit = max(1, min(int(limit), 40))
-        cache_key = f"{normalized_genre.casefold()}|{normalized_search.casefold()}|{bounded_limit}"
+        # The suffix prevents older broad genre results in the persistent cache
+        # from being reused after switching to exact tag matching.
+        cache_key = f"exact-tag-v1|{normalized_genre.casefold()}|{normalized_search.casefold()}|{bounded_limit}"
         with self._lock:
-            cached = self._load_cached(cache_key)
-            if cached is not None:
-                return cached
+            if not refresh:
+                cached = self._load_cached(cache_key)
+                if cached is not None:
+                    return cached
             try:
                 parameters = {"limit": str(min(bounded_limit, _UPSTREAM_LIMIT)), "hidebroken": "true", "order": "votes", "reverse": "true"}
                 if normalized_search:
@@ -61,6 +64,10 @@ class RadioBrowserDirectory:
                         stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/lastclick/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
                 else:
                     genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
+                    # Radio Browser defaults to partial tag matching.  Its
+                    # tagExact flag keeps the category badges genuinely scoped
+                    # to the selected genre.
+                    parameters["tagExact"] = "true"
                     stations = self._stations(self._payload(genre_path, parameters), bounded_limit)
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error

@@ -45,3 +45,17 @@ class ShoutcastDirectoryTests(unittest.TestCase):
             self.assertEqual(result["source"], "radio_browser")
             self.assertEqual(result["stations"][0]["name"], "Free Radio")
             self.assertEqual(hybrid.station("8c0c551f-33bb-44cc-88dd-000000000001")["bitrate"], 128)
+
+    def test_radio_browser_uses_an_exact_tag_and_refreshes_on_genre_selection(self):
+        payload = [{"stationuuid": "8c0c551f-33bb-44cc-88dd-000000000002", "name": "Strict Rock", "tags": "rock", "url_resolved": "https://stream.example.net/rock"}]
+        with tempfile.TemporaryDirectory() as directory:
+            calls = []
+            catalog = RadioBrowserDirectory(
+                Path(directory) / "browser.json",
+                fetch=lambda url: calls.append(url) or json.dumps(payload).encode(),
+                servers=lambda: ["https://de1.api.radio-browser.info"],
+            )
+            catalog.list_stations("Rock")
+            catalog.list_stations("Rock", refresh=True)
+            self.assertEqual(len(calls), 2)
+            self.assertTrue(all("tagExact=true" in url for url in calls))

@@ -28,11 +28,11 @@ def _error(status_code: int, code: str, message: str) -> JSONResponse:
 
 @router.get("/radio", response_model=None)
 def radio_catalog(
-    genre: str = "All", search: str = "", limit: int = 18,
+    genre: str = "All", search: str = "", limit: int = 18, refresh: bool = False,
     directory: HybridRadioDirectory = Depends(get_radio_directory),
 ):
     try:
-        return directory.list_stations(genre=genre, search=search, limit=limit)
+        return directory.list_stations(genre=genre, search=search, limit=limit, refresh=refresh)
     except RadioDirectoryError:
         return _error(502, "radio_directory_unavailable", "Каталог радио временно недоступен")
 

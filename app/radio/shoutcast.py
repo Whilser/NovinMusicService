@@ -41,7 +41,7 @@ class ShoutcastDirectory:
     def configured(self) -> bool:
         return bool(self.api_key)
 
-    def list_stations(self, genre: str = "All", search: str = "", limit: int = 18) -> dict[str, Any]:
+    def list_stations(self, genre: str = "All", search: str = "", limit: int = 18, refresh: bool = False) -> dict[str, Any]:
         normalized_genre = self._clean_text(genre, 48) or "All"
         if normalized_genre.casefold() == "all":
             normalized_genre = "All"
@@ -51,9 +51,10 @@ class ShoutcastDirectory:
             return {"configured": False, "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": []}
         cache_key = f"{normalized_genre.casefold()}|{normalized_search.casefold()}|{bounded_limit}"
         with self._lock:
-            cached = self._load_cached(cache_key)
-            if cached is not None:
-                return cached
+            if not refresh:
+                cached = self._load_cached(cache_key)
+                if cached is not None:
+                    return cached
             command = "stationsearch" if normalized_search or normalized_genre == "All" else "genresearch"
             params = {"k": self.api_key, "f": "json", "limit": str(bounded_limit)}
             if normalized_search:

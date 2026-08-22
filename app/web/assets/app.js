@@ -337,8 +337,9 @@ function radioCard(station, index) {
   ]);
 }
 
-async function renderRadio() {
+async function renderRadio(refresh = false) {
   const query = new URLSearchParams({ genre: state.radioGenre, limit: "24" });
+  if (refresh) query.set("refresh", "true");
   if (state.search) query.set("search", state.search);
   const result = await request(`/radio?${query}`);
   result.stations.forEach((station) => radioStations.set(station.id, station));
@@ -518,7 +519,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
-  else if (action === "radio-genre") { state.radioGenre = button.dataset.genre; await renderRadio(); }
+  else if (action === "radio-genre") { state.radioGenre = button.dataset.genre; await renderRadio(true); }
   else if (action === "radio-favorite") { const station = radioStations.get(button.dataset.id); if (radioFavorites.has(button.dataset.id)) { radioFavorites.delete(button.dataset.id); radioFavoriteStations.delete(button.dataset.id); } else if (station) { radioFavorites.add(button.dataset.id); radioFavoriteStations.set(button.dataset.id, station); } localStorage.setItem("novin-radio-favorites", JSON.stringify(Object.fromEntries(radioFavoriteStations))); await (state.route === "favorites" ? renderFavorites() : renderRadio()); }
   else if (action === "play-radio") { try { await request("/radio/play", { method: "POST", body: JSON.stringify({ station_id: button.dataset.id }) }); await pollPlayer(); notify("Станция загружена в MPD"); } catch (error) { notify(apiMessage(error)); } }
   else if (action === "pause-track") await command("pause");
