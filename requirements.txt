@@ -1,3 +1,4 @@
 fastapi>=0.110,<1
 mutagen>=1.47,<2
+Pillow>=11.3,<12
 uvicorn[standard]>=0.29,<1

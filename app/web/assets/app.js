@@ -168,14 +168,14 @@ function cover(item, className = "cover") {
   if (url) box.append(element("img", { src: url, alt: "", loading: "lazy" }));
   else box.append(element("span", { class: "cover-placeholder", attrs: { "aria-hidden": "true" } }, [icon("music", className === "row-cover" ? 20 : 42)]));
   if (!url && item.artist_image) {
-    if (item.artist_image_status === "missing" && item.album_covers?.length) box.replaceChildren(artistCollage(item.album_covers));
+    if (item.artist_image_status === "missing" && item.collage_url) box.replaceChildren(element("img", { src: item.collage_url, alt: "", loading: "lazy" }));
     else if (item.artist_image_status !== "missing") queueArtistImage(box, item.artist_image, item.album_covers || []);
   }
   return box;
 }
 
-function artistCollage(covers) {
-  return element("div", { class: "artist-collage", attrs: { "aria-label": "Коллаж обложек альбомов" } }, covers.slice(0, 4).map((url) => element("img", { src: url, alt: "", loading: "lazy" })));
+function artistCollageUrl(artist) {
+  return `${API}/artists/collage?${new URLSearchParams({ name: artist })}`;
 }
 
 const artistImageQueue = [];
@@ -185,7 +185,7 @@ function queueArtistImage(box, artist, albumCovers) {
     try {
       const response = await fetch(`${API}/artists/image?${new URLSearchParams({ name: artist })}`);
       if (response.status === 204) {
-        if (albumCovers.length) box.replaceChildren(artistCollage(albumCovers));
+        if (albumCovers.length) box.replaceChildren(element("img", { src: artistCollageUrl(artist), alt: "", loading: "lazy" }));
         return;
       }
       if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) return;

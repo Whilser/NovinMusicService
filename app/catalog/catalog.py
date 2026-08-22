@@ -295,6 +295,13 @@ class Catalog:
         ).fetchall()
         return sorted({str(row["value"]).strip()[:1].upper() for row in rows if str(row["value"]).strip()})
 
+    def artist_album_cover_urls(self, artist: str) -> list[str]:
+        rows = self._connection.execute(
+            """SELECT cover_url FROM tracks WHERE artist=? COLLATE NOCASE AND cover_url<>''
+               GROUP BY album,cover_url ORDER BY album COLLATE NOCASE LIMIT 4""", (artist,)
+        ).fetchall()
+        return [str(row["cover_url"]) for row in rows]
+
     def artist_image(self, artist: str) -> Optional[dict[str, Any]]:
         row = self._connection.execute(
             "SELECT artist,cover_id,status,source FROM artist_images WHERE artist=? COLLATE NOCASE", (artist,)

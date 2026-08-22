@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from typing import Dict, List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
-from app.artist_images import ArtistImageResolver
+from app.artist_images import ArtistCollageResolver, ArtistImageResolver
 from app.catalog import Catalog
 from app.dependencies import get_catalog
 
@@ -68,6 +70,9 @@ def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=5
             item["cover_url"] = f"/api/covers/{cover_id}"
         covers = item.pop("album_cover_urls", "")
         item["album_covers"] = [cover for cover in covers.split("\x1f") if cover] if covers else []
+        if image_status == "missing" and item["album_covers"]:
+            version = hashlib.sha256("\x1f".join(item["album_covers"]).encode()).hexdigest()
+            item["collage_url"] = f"/api/artists/collage?name={quote(item['name'])}&v={version}"
     return result
 
 
@@ -100,6 +105,26 @@ def artist_image(
         content=payload, media_type=mime_type,
         headers={"ETag": f'"{cover_id}"', "Cache-Control": "public, max-age=2592000"},
     )
+
+
+def get_artist_collage_resolver(request: Request, catalog: Catalog = Depends(get_catalog)) -> ArtistCollageResolver:
+    resolver = getattr(request.app.state, "artist_collage_resolver", None)
+    if resolver is None or resolver.catalog is not catalog:
+        resolver = ArtistCollageResolver(catalog, request.app.state.cover_dir)
+        request.app.state.artist_collage_resolver = resolver
+    return resolver
+
+
+@router.get("/artists/collage")
+def artist_collage(
+    name: str = Query(min_length=1, max_length=160),
+    resolver: ArtistCollageResolver = Depends(get_artist_collage_resolver),
+) -> Response:
+    collage = resolver.resolve(name)
+    if collage is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    payload, key = collage
+    return Response(content=payload, media_type="image/jpeg", headers={"ETag": f'"{key}"', "Cache-Control": "public, max-age=2592000, immutable"})
 
 
 @router.get("/playlists")
