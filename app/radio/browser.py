@@ -54,7 +54,7 @@ class RadioBrowserDirectory:
                     parameters["name"] = normalized_search
                     stations = self._stations(self._payload("/json/stations/search", parameters), bounded_limit)
                 elif normalized_genre == ALL_GENRE:
-                    stations = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), bounded_limit)
+                    stations = self._stations(self._payload(f"/json/stations/topclick/{min(bounded_limit, 24)}", {"hidebroken": "true"}), bounded_limit)
                 else:
                     genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
                     stations = self._stations(self._payload(genre_path, parameters), bounded_limit)

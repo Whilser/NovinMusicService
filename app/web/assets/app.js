@@ -12,6 +12,7 @@ const mobileRoutes = routes;
 const initialLocation = locationFromHash();
 const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "All" };
 const fullscreenPaletteCache = new Map();
+const radioFavorites = new Set(JSON.parse(localStorage.getItem("novin-radio-favorites") || "[]"));
 if (!location.hash) history.replaceState(null, "", "#/home");
 const dom = {
   content: document.querySelector("#content"), title: document.querySelector("#page-title"),
@@ -329,12 +330,12 @@ function radioCard(station, index) {
       element("span", { class: "radio-card-now", text: station.now_playing || "Shoutcast Radio" }),
       element("span", { class: "radio-card-play" }, [icon("play", 20)])
     ]),
-    element("p", { text: `${station.listeners ? `${station.listeners.toLocaleString("ru-RU")} слушателей` : "Онлайн-станция"}${station.bitrate ? ` · ${station.bitrate} kbps` : ""}` })
+    element("div", { class: "radio-card-footer" }, [element("p", { text: `${station.listeners ? `${station.listeners.toLocaleString("ru-RU")} слушателей` : "Онлайн-станция"}${station.bitrate ? ` · ${station.bitrate} kbps` : ""}` }), iconButton(radioFavorites.has(station.id) ? "Убрать из избранного" : "В избранное", "heart", "radio-favorite", { id: station.id }, radioFavorites.has(station.id))])
   ]);
 }
 
 async function renderRadio() {
-  const query = new URLSearchParams({ genre: state.radioGenre, limit: "18" });
+  const query = new URLSearchParams({ genre: state.radioGenre, limit: "24" });
   if (state.search) query.set("search", state.search);
   const result = await request(`/radio?${query}`);
   const sourceLabel = result.source === "shoutcast" ? "SHOUTCAST · PARTNER API" : "RADIO BROWSER · ОТКРЫТЫЙ КАТАЛОГ";
@@ -504,6 +505,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
   else if (action === "radio-genre") { state.radioGenre = button.dataset.genre; await renderRadio(); }
+  else if (action === "radio-favorite") { if (radioFavorites.has(button.dataset.id)) radioFavorites.delete(button.dataset.id); else radioFavorites.add(button.dataset.id); localStorage.setItem("novin-radio-favorites", JSON.stringify([...radioFavorites])); await renderRadio(); }
   else if (action === "play-radio") { try { await request("/radio/play", { method: "POST", body: JSON.stringify({ station_id: button.dataset.id }) }); await pollPlayer(); notify("Станция загружена в MPD"); } catch (error) { notify(apiMessage(error)); } }
   else if (action === "pause-track") await command("pause");
   else if (action === "play-list" || action === "shuffle-list") await play(button.dataset.ids.split(","), action === "shuffle-list");
