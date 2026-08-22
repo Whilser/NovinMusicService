@@ -355,7 +355,7 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]"); if (!button) return;
   await withButtonBusy(button, async () => { const action = button.dataset.action;
   if (action === "retry") await render();
-  else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus(); }
+  else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus({ focusVisible: false }); }
   else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route); if (location.hash === next) await render(); else location.hash = next; }
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });

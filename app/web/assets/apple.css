@@ -139,6 +139,7 @@ button svg, a svg { display: block; }
   font-size: .86rem;
   font-weight: 650;
 }
+.media-action:not(.secondary) { color: #fff; background: var(--accent); }
 .secondary { display: inline-flex; align-items: center; justify-content: center; gap: .42rem; color: #39393d; background: #ededee; }
 
 .detail-hero {
@@ -180,7 +181,7 @@ button svg, a svg { display: block; }
 .service-status--yellow { color: #e6a817; background: currentColor; }
 .service-status--red { color: #ef3d51; background: currentColor; }
 .field-grid input { border-color: #d9d9dc; border-radius: 8px; }
-.pagination { gap: 7px; }
+.pagination { gap: 7px; margin-top: 14px; }
 .pagination button { min-width: 34px; padding: .45rem .65rem; }
 .pagination .page-number { border: 1px solid #d8d8dc; background: #fff; }
 .pagination .page-number.active { color: #fff; border-color: var(--accent); background: var(--accent); opacity: 1; }
