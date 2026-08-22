@@ -262,18 +262,38 @@ class Catalog:
         ).fetchone()[0]
         rows = self._connection.execute(
             """SELECT t.artist AS name,COUNT(*) AS track_count,COALESCE(SUM(t.duration),0) AS duration,
-                       image.cover_id AS artist_cover_id,
+                       image.cover_id AS artist_cover_id,image.status AS artist_image_status,
                        (SELECT GROUP_CONCAT(cover_url, char(31)) FROM (
                             SELECT cover_url FROM tracks album_tracks
                             WHERE album_tracks.artist=t.artist AND album_tracks.cover_url<>''
                             GROUP BY album_tracks.album, album_tracks.cover_url
                             ORDER BY album_tracks.album COLLATE NOCASE LIMIT 4
                         )) AS album_cover_urls
-                FROM tracks t LEFT JOIN artist_images image ON image.artist=t.artist AND image.status='ready'
+                FROM tracks t LEFT JOIN artist_images image ON image.artist=t.artist
                 WHERE t.artist<>'' GROUP BY t.artist
                 ORDER BY t.artist COLLATE NOCASE LIMIT ? OFFSET ?""", (limit, offset)
         ).fetchall()
         return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
+
+    def list_catalog_initials(self, kind: str, search: str = "", favorite: Optional[bool] = None) -> list[str]:
+        columns = {"albums": "t.album", "artists": "t.artist", "songs": "t.artist"}
+        column = columns.get(kind)
+        if column is None:
+            raise ValidationError("unknown catalog kind", {"kind": kind})
+        clauses = [f"{column}<>''"]
+        params: list[Any] = []
+        if search:
+            clauses.append("(t.title LIKE ? OR t.artist LIKE ? OR t.album LIKE ?)")
+            term = f"%{search}%"
+            params.extend((term, term, term))
+        if kind == "songs" and favorite is not None:
+            clauses.append("COALESCE(p.favorite,0)=?")
+            params.append(int(favorite))
+        preferences = " LEFT JOIN track_preferences p ON p.track_id=t.id" if kind == "songs" else ""
+        rows = self._connection.execute(
+            f"SELECT DISTINCT {column} AS value FROM tracks t{preferences} WHERE " + " AND ".join(clauses), params
+        ).fetchall()
+        return sorted({str(row["value"]).strip()[:1].upper() for row in rows if str(row["value"]).strip()})
 
     def artist_image(self, artist: str) -> Optional[dict[str, Any]]:
         row = self._connection.execute(

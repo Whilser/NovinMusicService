@@ -38,6 +38,8 @@ class CatalogApiTests(unittest.TestCase):
                 self.assertEqual(artists.status_code, 200)
                 self.assertEqual({item["name"] for item in artists.json()["items"]}, {"Alpha", "Beta"})
                 self.assertEqual(next(item for item in artists.json()["items"] if item["name"] == "Alpha")["album_covers"], ["alpha-cover"])
+                self.assertIsNone(next(item for item in artists.json()["items"] if item["name"] == "Alpha")["artist_image_status"])
+                self.assertEqual(client.get("/api/catalog/initials?kind=songs").json()["items"], ["A", "B"])
 
                 created = client.post("/api/playlists", json={"name": "Drive"})
                 self.assertEqual(created.status_code, 201)

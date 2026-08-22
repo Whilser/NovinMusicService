@@ -63,11 +63,20 @@ def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=5
     result = catalog.list_artists(page=page, page_size=page_size)
     for item in result["items"]:
         cover_id = item.pop("artist_cover_id", None)
-        if cover_id:
+        image_status = item.get("artist_image_status")
+        if cover_id and image_status == "ready":
             item["cover_url"] = f"/api/covers/{cover_id}"
         covers = item.pop("album_cover_urls", "")
         item["album_covers"] = [cover for cover in covers.split("\x1f") if cover] if covers else []
     return result
+
+
+@router.get("/catalog/initials")
+def catalog_initials(
+    kind: str = Query(pattern="^(albums|artists|songs)$"), search: str = "", favorite: Optional[bool] = None,
+    catalog: Catalog = Depends(get_catalog),
+) -> dict:
+    return {"items": catalog.list_catalog_initials(kind, search=search, favorite=favorite)}
 
 
 def get_artist_image_resolver(request: Request, catalog: Catalog = Depends(get_catalog)) -> ArtistImageResolver:

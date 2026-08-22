@@ -79,6 +79,7 @@ const server = http.createServer(async (request, response) => {
   }
   if (url.pathname === "/api/albums") return json(response, 200, { items: albumGroups, total: albumGroups.length });
   if (url.pathname === "/api/artists") return json(response, 200, { items: [{ name: "Artist A", track_count: 2 }, { name: "Artist B", track_count: 1 }], total: 2 });
+  if (url.pathname === "/api/catalog/initials") return json(response, 200, { items: ["A", "B"] });
   if (url.pathname === "/api/playlists" && request.method === "GET") return json(response, 200, playlists.map((item) => ({ ...item, track_count: item.tracks.length })));
   if (url.pathname === "/api/playlists" && request.method === "POST") { const input = await body(request); requests.push({ method: request.method, path: url.pathname, body: input }); const item = { id: nextPlaylist++, name: input.name, tracks: [] }; playlists.push(item); return json(response, 201, item); }
   const playlistMatch = url.pathname.match(/^\/api\/playlists\/(\d+)$/);

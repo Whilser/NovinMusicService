@@ -79,6 +79,7 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertEqual(len(page["items"]), 1)
             self.assertEqual(catalog.list_albums()["total"], 2)
             self.assertEqual(catalog.list_artists()["total"], 2)
+            self.assertEqual(catalog.list_catalog_initials("songs"), ["A", "B"])
             catalog.close()
 
     def test_same_album_title_by_different_artists_forms_one_compilation(self):
@@ -106,6 +107,8 @@ class CatalogQueryTests(unittest.TestCase):
             )
             artist = catalog.list_artists()["items"][0]
             self.assertEqual(artist["album_cover_urls"].split("\x1f"), ["cover-1", "cover-2", "cover-3", "cover-4"])
+            catalog.save_artist_image("Alpha", None, "missing", "wikimedia")
+            self.assertEqual(catalog.list_artists()["items"][0]["artist_image_status"], "missing")
             catalog.close()
 
 

@@ -67,7 +67,7 @@ button svg, a svg { display: block; }
 .nav-icon { display: grid; place-items: center; width: 20px; color: #4a4a4e; }
 .nav-item[aria-current="page"] .nav-icon { color: var(--accent); }
 
-.main { min-height: 100vh; margin-left: 222px; padding: 28px clamp(28px, 4vw, 58px) 132px; }
+.main { min-height: 100vh; margin-left: 222px; padding: 28px max(76px, clamp(28px, 4vw, 58px)) 132px clamp(28px, 4vw, 58px); }
 .topbar { align-items: center; margin-bottom: 28px; }
 .eyebrow { display: none; }
 .topbar h1 { font-size: clamp(1.65rem, 3vw, 2.15rem); font-weight: 720; letter-spacing: -.035em; }
@@ -86,8 +86,8 @@ button svg, a svg { display: block; }
 .section-heading h2 { font-size: 1.25rem; letter-spacing: -.025em; }
 .grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 24px 17px; }
 .catalog-grid { min-height: min(760px, calc(100vh - 270px)); align-content: start; }
-.alphabet-index { position: fixed; z-index: 4; top: 50%; right: clamp(8px, 1.3vw, 22px); display: grid; max-height: calc(100vh - 190px); grid-auto-flow: column; grid-template-rows: repeat(18, minmax(0, 1fr)); gap: 1px 4px; transform: translateY(-50%); }
-.alphabet-index button { min-width: 15px; min-height: 15px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--accent); font-size: .68rem; font-weight: 700; line-height: 1; cursor: pointer; }
+.alphabet-index { position: fixed; z-index: 4; top: 106px; right: 18px; bottom: calc(var(--player) + 40px); display: flex; flex-direction: column; justify-content: space-between; }
+.alphabet-index button { min-width: 20px; min-height: 15px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--accent); font-size: .68rem; font-weight: 700; line-height: 1; cursor: pointer; }
 .alphabet-index button:hover, .alphabet-index button:focus-visible { background: #ffe8ec; outline: 0; }
 .cover { border-radius: 10px; box-shadow: 0 8px 22px #00000014; }
 .cover-placeholder { color: #aaaab0; background: linear-gradient(145deg, #e8e8ea, #f7f7f8); }
