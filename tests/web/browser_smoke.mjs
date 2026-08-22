@@ -269,6 +269,7 @@ try {
   await mobile.waitForFunction(() => !document.querySelector('#player [data-command="pause"]')?.disabled && Boolean(document.querySelector("#player-cover img[src='/api/covers/cover-a']")));
   assert.equal(await mobile.locator("#player").getByLabel("Пауза").isDisabled(), false);
   assert.equal(await mobile.locator("#player-cover img[src='/api/covers/cover-a']").count(), 1);
+  assert.equal(await mobile.locator('[data-track-id="3"]').getByRole("button", { name: "Пауза" }).count(), 1);
   await mobile.locator("#player-cover").click();
   assert.equal(await mobile.locator("#fullscreen-player").isVisible(), true);
   assert.equal(await mobile.locator("#fullscreen-cover img[src='/api/covers/cover-a']").count(), 1);

@@ -200,10 +200,16 @@ function albumCard(item, type = "album") {
   ]);
 }
 
+function isPlayingTrack(track) {
+  const file = state.player?.song?.file;
+  return state.player?.state === "play" && Boolean(file) && (file === track.path || file.endsWith(`/${track.path}`));
+}
+
 function trackRow(track, options = {}) {
   const row = element("article", { class: `track-row${options.compact ? " compact" : ""}`, dataset: { trackId: String(track.id) } });
   const image = cover(track, "row-cover");
-  const playOne = iconButton("Воспроизвести", "play", "play-one", { id: String(track.id) }); playOne.classList.add("track-play");
+  const playing = isPlayingTrack(track);
+  const playOne = iconButton(playing ? "Пауза" : "Воспроизвести", playing ? "pause" : "play", playing ? "pause-track" : "play-one", { id: String(track.id) }); playOne.classList.add("track-play");
   const info = element("div", { class: "track-title" }, [element("strong", { text: track.title || "Без названия" }), element("span", { text: track.artist || "Неизвестный исполнитель" })]);
   row.append(image, playOne, info, element("span", { class: "track-album", text: track.album || "Неизвестный альбом" }));
   const rating = element("div", { class: "rating", attrs: { "aria-label": `Оценка ${track.title}` } });
@@ -369,6 +375,16 @@ async function playFromTrack(id) {
 }
 async function command(name, params = {}) { try { await request("/player/command", { method: "POST", body: JSON.stringify({ command: name, params }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
 
+function syncTrackPlayButtons() {
+  document.querySelectorAll(".track-play").forEach((button) => {
+    const track = state.tracks.find((item) => item.id === Number(button.dataset.id));
+    const playing = track && isPlayingTrack(track);
+    button.dataset.action = playing ? "pause-track" : "play-one";
+    button.setAttribute("aria-label", playing ? "Пауза" : "Воспроизвести");
+    replace(button, icon(playing ? "pause" : "play", 18));
+  });
+}
+
 function openPlaylistDialog(mode, data = {}) { dom.dialog.dataset.mode = mode; dom.dialog.dataset.id = data.id || ""; dom.dialogTitle.textContent = mode === "rename" ? "Переименовать плейлист" : "Новый плейлист"; dom.playlistName.value = data.name || ""; dom.dialog.showModal(); dom.playlistName.focus(); }
 async function savePlaylist(event) { event.preventDefault(); const name = dom.playlistName.value.trim(); if (!name) return; await withButtonBusy(event.submitter || dom.playlistSave, async () => { try { if (dom.dialog.dataset.mode === "rename") { const id = Number(dom.dialog.dataset.id); await request(`/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = { id }; await renderPlaylist(id); } else { await request("/playlists", { method: "POST", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = null; await render(); } } catch (error) { notify(apiMessage(error)); } }); }
 
@@ -384,6 +400,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
+  else if (action === "pause-track") await command("pause");
   else if (action === "play-list" || action === "shuffle-list") await play(button.dataset.ids.split(","), action === "shuffle-list");
   else if (action === "create-playlist") openPlaylistDialog("create");
   else if (action === "rename-playlist") openPlaylistDialog("rename", button.dataset);
@@ -457,6 +474,7 @@ async function updatePlayer(player) {
   const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0); dom.elapsed.textContent = formatTime(elapsed); dom.duration.textContent = formatTime(duration); dom.seek.max = String(Math.max(1, duration)); dom.seek.value = String(Math.min(elapsed, duration || 1)); dom.volume.value = String(Number(player?.volume || 0));
   for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { const disabled = !online || control.dataset.busy === "true"; control.disabled = disabled; control.setAttribute("aria-disabled", String(disabled)); }
   const toggle = document.querySelector(".play-toggle"); replace(toggle, icon(player?.state === "play" ? "pause" : "play", 17)); toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
+  syncTrackPlayButtons();
   replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.append(icon("music", 20));
   updateFullscreenPlayer(player, track);
 }
