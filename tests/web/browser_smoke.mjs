@@ -13,6 +13,10 @@ const baseTracks = [
   { id: 2, path: "other.flac", title: "Other", artist: "Artist B", album: "Same", album_artist: "Artist B", duration: 160, cover_url: null, rating: 0, favorite: false },
   { id: 1, path: "old.flac", title: "Old", artist: "Artist A", album: "First", album_artist: "Artist A", duration: 140, cover_url: null, rating: 2, favorite: true }
 ];
+const albumGroups = [
+  { name: "Same", album_artist: "Artist A", track_count: 1 }, { name: "Same", album_artist: "Artist B", track_count: 1 }, { name: "First", album_artist: "Artist A", track_count: 1 },
+  ...Array.from({ length: 24 }, (_, index) => ({ name: `Archive ${index + 1}`, album_artist: "Artist A", track_count: 1 }))
+];
 let tracks = structuredClone(baseTracks);
 let playlists = [];
 let nextPlaylist = 1;
@@ -73,7 +77,7 @@ const server = http.createServer(async (request, response) => {
     const offset = Number(url.searchParams.get("offset") || 0); const limit = Number(url.searchParams.get("limit") || 50);
     return json(response, 200, { items: found.slice(offset, offset + limit), total: found.length, offset, limit });
   }
-  if (url.pathname === "/api/albums") return json(response, 200, { items: [{ name: "Same", album_artist: "Artist A", track_count: 1 }, { name: "Same", album_artist: "Artist B", track_count: 1 }, { name: "First", album_artist: "Artist A", track_count: 1 }], total: 3 });
+  if (url.pathname === "/api/albums") return json(response, 200, { items: albumGroups, total: albumGroups.length });
   if (url.pathname === "/api/artists") return json(response, 200, { items: [{ name: "Artist A", track_count: 2 }, { name: "Artist B", track_count: 1 }], total: 2 });
   if (url.pathname === "/api/playlists" && request.method === "GET") return json(response, 200, playlists.map((item) => ({ ...item, track_count: item.tracks.length })));
   if (url.pathname === "/api/playlists" && request.method === "POST") { const input = await body(request); requests.push({ method: request.method, path: url.pathname, body: input }); const item = { id: nextPlaylist++, name: input.name, tracks: [] }; playlists.push(item); return json(response, 201, item); }
@@ -130,6 +134,17 @@ try {
   requests.splice(0);
   await desktop.getByRole("button", { name: "Назад к списку: альбомы" }).click();
   await waitForRoute(desktop, "#/albums", "Альбомы", '[data-action="select-group"][data-type="album"]');
+  await desktop.getByRole("button", { name: "Страница 2" }).click();
+  await desktop.waitForFunction(() => document.querySelector('[data-action="select-group"][data-name="Archive 22"]'));
+  assert.equal(await desktop.locator('[data-action="select-group"][data-name="Archive 22"]').getAttribute("data-return-page"), "2");
+  await desktop.locator('[data-action="select-group"][data-name="Archive 22"]').click();
+  await desktop.waitForFunction(() => Boolean(document.querySelector('[data-action="back-group"]')));
+  assert.equal(await desktop.locator('[data-action="back-group"]').getAttribute("data-page"), "2");
+  assert.equal(await desktop.locator('[data-action="back-group"]').getAttribute("data-route"), "albums");
+  await desktop.getByRole("button", { name: "Назад к списку: альбомы" }).click();
+  await desktop.waitForTimeout(300);
+  assert.equal(new URL(await desktop.url()).hash, "#/albums?page=2");
+  assert.equal(await desktop.locator('.page-number.active').textContent(), "2");
   await desktop.goto(`${origin}/#/songs`);
   await waitForRoute(desktop, "#/songs", "Песни", ".track-row");
   assert.equal(await desktop.locator('[data-attack="yes"]').count(), 0);

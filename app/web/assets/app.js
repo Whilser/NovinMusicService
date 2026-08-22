@@ -9,7 +9,7 @@ const routes = [
 ];
 const mobileRoutes = routes;
 const initialLocation = locationFromHash();
-const state = { route: initialLocation.route, page: 1, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null };
+const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null };
 if (!location.hash) history.replaceState(null, "", "#/home");
 const dom = {
   content: document.querySelector("#content"), title: document.querySelector("#page-title"),
@@ -99,11 +99,12 @@ function locationFromHash() {
   const query = new URLSearchParams(queryString);
   let selected = null;
   if (route === "playlists" && /^\d+$/.test(parts[1] || "")) selected = { id: Number(parts[1]) };
-  if ((route === "albums" || route === "artists") && query.get("name")) selected = { type: route === "albums" ? "album" : "artist", name: query.get("name"), albumArtist: query.get("album_artist") || "" };
-  return { route, selected };
+  const page = Math.max(1, Number(query.get("page")) || 1);
+  if ((route === "albums" || route === "artists") && query.get("name")) selected = { type: route === "albums" ? "album" : "artist", name: query.get("name"), albumArtist: query.get("album_artist") || "", returnPage: Math.max(1, Number(query.get("return_page")) || 1) };
+  return { route, selected, page };
 }
-function routePath(route) { return `#/${route}`; }
-function selectedPath(type, name, albumArtist = "") { const query = new URLSearchParams({ name }); if (albumArtist) query.set("album_artist", albumArtist); return `#/${type === "album" ? "albums" : "artists"}?${query}`; }
+function routePath(route, page = 1) { const query = page > 1 ? `?${new URLSearchParams({ page: String(page) })}` : ""; return `#/${route}${query}`; }
+function selectedPath(type, name, albumArtist = "", returnPage = 1) { const query = new URLSearchParams({ name, return_page: String(returnPage) }); if (albumArtist) query.set("album_artist", albumArtist); return `#/${type === "album" ? "albums" : "artists"}?${query}`; }
 function formatTime(value) { const seconds = Math.max(0, Number(value) || 0); return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`; }
 function coverUrl(item) { return item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : ""); }
 function apiMessage(error) { return error?.error?.message || error?.message || "Не удалось выполнить запрос"; }
@@ -194,7 +195,7 @@ function albumCard(item, type = "album") {
   const albumArtist = item.album_artist || "";
   const cardItem = type === "artist" ? { ...item, artist_image: item.name } : item;
   return element("article", { class: "card" }, [
-    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem)]),
+    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist, returnPage: String(state.page) }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem)]),
     element("h3", { text: name }), element("p", { text: item.artist || item.album_artist || `${item.track_count || 0} треков` })
   ]);
 }
@@ -259,7 +260,7 @@ async function renderGroups(type) {
   const filtered = state.search ? allItems.filter((item) => (item.name || "").toLowerCase().includes(state.search.toLowerCase())) : allItems;
   const pageItems = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
   if (!pageItems.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
-  else replace(dom.content, element("div", { class: "grid" }, pageItems.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(filtered.length));
+  else replace(dom.content, element("div", { class: "grid catalog-grid" }, pageItems.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(filtered.length));
 }
 
 async function renderSongs(favorite = false) {
@@ -273,7 +274,7 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
   const allMatches = await fetchAllTracks({ search: name });
   const key = type === "album" ? "album" : "artist";
   const items = allMatches.filter((item) => item[key] === name);
-  state.tracks = items; state.selected = { type, name, albumArtist };
+  state.tracks = items; state.selected = { type, name, albumArtist, returnPage: state.selected?.returnPage || 1 };
   dom.title.textContent = name;
   const representative = items[0] || { album: name, artist: albumArtist };
   const subtitle = type === "album" ? (albumArtist || representative.artist || "Неизвестный исполнитель") : "Исполнитель";
@@ -288,7 +289,7 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
       element("div", { class: "detail-actions" }, playButtons(items))
     ])
   ]);
-  const back = element("button", { class: "detail-back", dataset: { action: "back-group", route: listRoute }, attrs: { type: "button", "aria-label": `Назад к списку: ${listRoute === "albums" ? "альбомы" : "исполнители"}` } }, [icon("back", 26)]);
+  const back = element("button", { class: "detail-back", dataset: { action: "back-group", route: listRoute, page: String(state.selected?.returnPage || 1) }, attrs: { type: "button", "aria-label": `Назад к списку: ${listRoute === "albums" ? "альбомы" : "исполнители"}` } }, [icon("back", 26)]);
   const topbar = dom.title.closest(".topbar");
   topbar.classList.add("has-detail-back");
   topbar.insertBefore(back, dom.title.parentElement);
@@ -372,14 +373,14 @@ function openPlaylistDialog(mode, data = {}) { dom.dialog.dataset.mode = mode; d
 async function savePlaylist(event) { event.preventDefault(); const name = dom.playlistName.value.trim(); if (!name) return; await withButtonBusy(event.submitter || dom.playlistSave, async () => { try { if (dom.dialog.dataset.mode === "rename") { const id = Number(dom.dialog.dataset.id); await request(`/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = { id }; await renderPlaylist(id); } else { await request("/playlists", { method: "POST", body: JSON.stringify({ name }) }); dom.dialog.close(); state.selected = null; await render(); } } catch (error) { notify(apiMessage(error)); } }); }
 
 document.addEventListener("click", async (event) => {
-  const routeLink = event.target.closest("[data-route]");
+  const routeLink = event.target.closest("[data-route]:not([data-action])");
   if (routeLink) { event.preventDefault(); const next = routePath(routeLink.dataset.route); if (location.hash === next) { state.selected = null; state.page = 1; await render(); } else location.hash = next; return; }
   const button = event.target.closest("[data-action]"); if (!button) return;
   await withButtonBusy(button, async () => { const action = button.dataset.action;
   if (action === "retry") await render();
   else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus({ focusVisible: false }); }
-  else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route); if (location.hash === next) await render(); else location.hash = next; }
-  else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
+  else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route, Number(button.dataset.page) || 1); if (location.hash === next) await render(); else location.hash = next; }
+  else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist, Number(button.dataset.returnPage) || 1); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
@@ -408,7 +409,7 @@ dom.dialog.querySelector("form").addEventListener("submit", savePlaylist);
 document.querySelector("#playlist-cancel").addEventListener("click", () => dom.dialog.close());
 document.querySelector("[data-skip-link]").addEventListener("click", (event) => { event.preventDefault(); document.querySelector("#main").focus(); });
 dom.search.addEventListener("input", () => { clearTimeout(dom.search.timer); dom.search.timer = setTimeout(async () => { state.search = dom.search.value.trim(); state.page = 1; state.selected = null; await render(); }, 280); });
-window.addEventListener("hashchange", async () => { const next = locationFromHash(); state.route = next.route; state.selected = next.selected; state.page = 1; await render(); });
+window.addEventListener("hashchange", async () => { const next = locationFromHash(); state.route = next.route; state.selected = next.selected; state.page = next.page; await render(); });
 document.querySelector(".transport").addEventListener("click", async (event) => { const button = event.target.closest("[data-command]"); if (!button) return; await withButtonBusy(button, async () => { const name = button.dataset.command === "play" && state.player?.state === "play" ? "pause" : button.dataset.command; await command(name); }); });
 dom.seek.addEventListener("change", () => command("seek", { position: Number(dom.seek.value) }));
 dom.volume.addEventListener("change", () => command("volume", { volume: Number(dom.volume.value) }));
