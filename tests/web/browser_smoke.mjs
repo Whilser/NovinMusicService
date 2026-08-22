@@ -120,6 +120,10 @@ try {
   assert.equal(new URL(await desktop.url()).hash, routeBeforeSkip);
   await desktop.goto(`${origin}/#/albums?name=Same&album_artist=Artist%20A`);
   await desktop.waitForFunction(() => Boolean(document.querySelector('[data-action="back-group"]')));
+  assert.equal(await desktop.evaluate(() => {
+    const row = document.querySelector(".track-row.compact"); const actions = row?.querySelector(".reorder");
+    return Boolean(row && actions && Math.abs(row.getBoundingClientRect().top - actions.getBoundingClientRect().top) < 18);
+  }), true);
   await desktop.getByRole("button", { name: "Назад к списку: альбомы" }).click();
   await waitForRoute(desktop, "#/albums", "Альбомы", '[data-action="select-group"][data-type="album"]');
   await desktop.goto(`${origin}/#/songs`);
