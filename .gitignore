@@ -6,4 +6,5 @@ __pycache__/
 .DS_Store
 dist/
 coverage/
-
+data/*.sqlite3
+data/*.sqlite3-*

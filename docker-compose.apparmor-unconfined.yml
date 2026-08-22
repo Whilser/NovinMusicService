@@ -1,0 +1,5 @@
+# Opt in only when the Linux host's AppArmor policy blocks mount.cifs.
+services:
+  novin-music:
+    security_opt:
+      - apparmor:unconfined
