@@ -135,6 +135,13 @@ try {
   assert.equal(await desktop.locator('[data-attack="yes"]').count(), 0);
   assert.equal(await desktop.getByText(hostile, { exact: true }).count(), 1);
   assert.notEqual(await desktop.evaluate(() => window.hacked), true);
+  assert.equal(await desktop.evaluate(() => {
+    const cover = document.querySelector(".track-row:not(.compact) .row-cover");
+    const image = cover?.querySelector("img");
+    const coverBox = cover?.getBoundingClientRect();
+    const imageBox = image?.getBoundingClientRect();
+    return Boolean(coverBox && imageBox && coverBox.width === 42 && coverBox.height === 42 && imageBox.width <= 42 && imageBox.height <= 42);
+  }), true);
   assert.equal(await desktop.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.match(await desktop.locator("link[href='/assets/styles.css']").evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent")), /fa2d48/);
 

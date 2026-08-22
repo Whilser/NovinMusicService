@@ -104,7 +104,24 @@ button svg, a svg { display: block; }
 .track-play { width: 30px; height: 30px; }
 .track-title strong { font-size: .9rem; font-weight: 520; }
 .track-title span, .track-album { font-size: .77rem; }
-.row-cover { border-radius: 6px; box-shadow: none; }
+.row-cover {
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 6px;
+  box-shadow: none;
+}
+.row-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .icon-button { display: grid; place-items: center; color: #636368; }
 .icon-button:hover { color: var(--accent); background: #0000000b; }
 .icon-button.active, .favorite.active, .rating button.active { color: var(--accent); }
