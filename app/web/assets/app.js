@@ -59,15 +59,15 @@ const ICON_PATHS = {
   star: [["path", { d: "m12 3 2.8 5.8 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.7l6.2-.9Z" }]],
   more: [["circle", { cx: "5", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }], ["circle", { cx: "12", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }], ["circle", { cx: "19", cy: "12", r: "1.4", fill: "currentColor", stroke: "none" }]]
 };
-function icon(name, size = 18, filled = false) {
+function icon(name, size = 18, filled = false, strokeWidth = 1.8) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", width: size, height: size, fill: filled ? "currentColor" : "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" })) svg.setAttribute(key, String(value));
+  for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", width: size, height: size, fill: filled ? "currentColor" : "none", stroke: "currentColor", "stroke-width": strokeWidth, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" })) svg.setAttribute(key, String(value));
   for (const [tag, attrs] of ICON_PATHS[name] || ICON_PATHS.music) { const part = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [key, value] of Object.entries(attrs)) part.setAttribute(key, value); svg.append(part); }
   return svg;
 }
 function labeledIcon(name, label) { return [icon(name), element("span", { text: label })]; }
 function iconButton(label, iconName, action, data = {}, active = false) { return element("button", { class: `icon-button${active ? " active" : ""}`, dataset: { action, ...data }, attrs: { type: "button", "aria-label": label } }, [icon(iconName, 18, active && iconName === "heart")]); }
-replace(document.querySelector(".brand-mark"), icon("music", 18));
+replace(document.querySelector(".brand-mark"), icon("music", 18, false, 1.35));
 replace(document.querySelector(".search > span[aria-hidden]"), icon("search", 17));
 replace(document.querySelector('[data-command="previous"]'), icon("previous", 18));
 replace(document.querySelector('[data-command="next"]'), icon("next", 18));
