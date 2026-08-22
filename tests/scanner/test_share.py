@@ -23,6 +23,8 @@ class ShareManagerTests(unittest.TestCase):
 
         def run(command, **kwargs):
             calls.append(command)
+            if command[0] == "findmnt":
+                return type("Result", (), {"returncode": 1, "stderr": ""})()
             return type("Result", (), {"returncode": 0, "stderr": ""})()
 
         manager = ShareManager(mount_point="/music", runner=run, env={})
@@ -30,7 +32,10 @@ class ShareManagerTests(unittest.TestCase):
 
         self.assertEqual(status["state"], "connected")
         self.assertEqual(status["authentication"], "guest")
-        self.assertEqual(calls, [["mount", "-t", "cifs", "//nas.local/Music", "/music", "-o", "ro,guest"]])
+        self.assertEqual(calls, [
+            ["findmnt", "--noheadings", "--types", "cifs", "--target", "/music"],
+            ["mount", "-t", "cifs", "//nas.local/Music", "/music", "-o", "ro,guest"],
+        ])
 
     def test_rejects_command_injection_and_writable_options(self):
         manager = ShareManager(runner=lambda *args, **kwargs: None, env={})
@@ -50,6 +55,8 @@ class ShareManagerTests(unittest.TestCase):
 
         def run(command, **kwargs):
             calls.append(command)
+            if command[0] == "findmnt":
+                return type("Result", (), {"returncode": 1, "stderr": ""})()
             credentials_path = command[-1].split("credentials=", 1)[1].split(",", 1)[0]
             credential_paths.append(credentials_path)
             self.assertEqual(stat.S_IMODE(os.stat(credentials_path).st_mode), 0o600)
@@ -126,14 +133,33 @@ class ShareManagerTests(unittest.TestCase):
 
         def run(command, **kwargs):
             calls.append(command)
-            returncode = 1 if command[0] == "mountpoint" else 0
+            returncode = 1 if command[0] == "findmnt" else 0
             return type("Result", (), {"returncode": returncode, "stderr": ""})()
 
         manager = ShareManager(runner=run, env={})
         manager.apply({"host": "nas", "share": "Music"})
 
         self.assertEqual(manager.status()["state"], "error")
-        self.assertEqual(calls[-1], ["mountpoint", "-q", "/music"])
+        self.assertEqual(calls[-1], ["findmnt", "--noheadings", "--types", "cifs", "--target", "/music"])
+
+    def test_reapply_reuses_the_existing_cifs_mount(self):
+        calls = []
+        mounted = False
+
+        def run(command, **kwargs):
+            nonlocal mounted
+            calls.append(command)
+            if command[0] == "findmnt":
+                return type("Result", (), {"returncode": 0 if mounted else 1, "stderr": ""})()
+            mounted = True
+            return type("Result", (), {"returncode": 0, "stderr": ""})()
+
+        manager = ShareManager(mount_point="/music", runner=run, env={})
+        manager.apply({"host": "nas", "share": "Music"})
+        status = manager.apply({"host": "nas", "share": "Music"})
+
+        self.assertEqual(status["state"], "connected")
+        self.assertEqual(sum(command[0] == "mount" for command in calls), 1)
 
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,14 @@ class ShareManager:
             raise ShareValidationError("SMB_USERNAME and SMB_PASSWORD must be set together")
         if any(character in username + password for character in ("\n", "\r", "\x00")):
             raise ShareValidationError("invalid SMB credentials")
+        if self._cifs_is_mounted():
+            self._status = {
+                "state": "connected",
+                "source": source,
+                "mount_point": str(self.MOUNT_POINT),
+                "authentication": "credentials" if username else "guest",
+            }
+            return dict(self._status)
         credentials_path = None
         try:
             if username:
@@ -110,18 +118,22 @@ class ShareManager:
 
     def status(self) -> dict:
         if self._status["state"] == "connected":
-            try:
-                result = self._runner(
-                    ["mountpoint", "-q", str(self.MOUNT_POINT)],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-            except Exception:
-                return {"state": "error", "message": "SMB mount status check failed"}
-            if result.returncode:
+            if not self._cifs_is_mounted():
                 return {"state": "error", "message": "SMB share is not mounted"}
         return dict(self._status)
+
+    def _cifs_is_mounted(self) -> bool:
+        """A tmpfs mount point exists even before CIFS is mounted over it."""
+        try:
+            result = self._runner(
+                ["findmnt", "--noheadings", "--types", "cifs", "--target", str(self.MOUNT_POINT)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
 
     @classmethod
     def _validated_options(cls, raw: str) -> list:
