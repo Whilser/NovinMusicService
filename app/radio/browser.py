@@ -62,9 +62,6 @@ class RadioBrowserDirectory:
                 else:
                     genre_path = f"/json/stations/bytag/{quote(normalized_genre, safe='')}"
                     stations = self._stations(self._payload(genre_path, parameters), bounded_limit)
-                    if len(stations) < _UPSTREAM_LIMIT:
-                        popular = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), _UPSTREAM_LIMIT)
-                        stations = self._merge_stations(stations, popular, limit=bounded_limit)
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error
             result = {"configured": True, "source": "radio_browser", "genres": list(RADIO_GENRES), "genre": normalized_genre, "stations": stations}
