@@ -14,8 +14,8 @@ if [ ! -r "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE" >&2
   exit 1
 fi
-if ! command -v mount.cifs >/dev/null 2>&1; then
-  echo "cifs-utils is required: sudo apt install cifs-utils" >&2
+if ! command -v mount.cifs >/dev/null 2>&1 || ! command -v mpc >/dev/null 2>&1; then
+  echo "Required packages are missing: sudo apt install cifs-utils mpc" >&2
   exit 1
 fi
 
