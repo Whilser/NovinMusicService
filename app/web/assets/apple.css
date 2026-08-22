@@ -184,13 +184,24 @@ button svg, a svg { display: block; }
   background: var(--accent);
 }
 .detail-actions .media-action:not(.secondary):hover {
-  animation: play-prism 2.4s ease-in-out infinite;
+  position: relative;
+  isolation: isolate;
+  box-shadow: 0 0 14px #fa2d4860;
+}
+.detail-actions .media-action:not(.secondary):hover::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -5px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, #ff486a, #ffb44a, #d9f14a, #45d8ba, #44a7ff, #b778ff, #ff486a);
+  filter: blur(3px);
+  opacity: .82;
+  animation: play-rainbow-orbit 1.8s linear infinite;
 }
 
-@keyframes play-prism {
-  0%, 100% { box-shadow: 0 0 0 2px #ff4b7099, 0 0 12px #ff4b7073, 0 0 22px #ffb84d50; }
-  33% { box-shadow: 0 0 0 2px #b875ff99, 0 0 12px #b875ff73, 0 0 22px #40d6ff50; }
-  66% { box-shadow: 0 0 0 2px #42d8b899, 0 0 12px #42d8b873, 0 0 22px #ffe44d50; }
+@keyframes play-rainbow-orbit {
+  to { transform: rotate(1turn); }
 }
 
 .settings-grid { gap: 16px; }
