@@ -78,6 +78,20 @@ class ShareManagerTests(unittest.TestCase):
 
         self.assertEqual(status, {"state": "error", "message": "SMB mount failed"})
 
+    def test_mount_failure_classifies_safe_actionable_errors(self):
+        cases = (
+            ("mount error: could not resolve address", "SMB host could not be resolved; use the NAS IP address"),
+            ("mount error(13): Permission denied", "SMB server denied guest access"),
+            ("Unable to apply new capability set.", "Container lacks capabilities required for SMB mounting"),
+        )
+        for stderr, expected in cases:
+            with self.subTest(stderr=stderr):
+                runner = lambda command, **kwargs: type(
+                    "Result", (), {"returncode": 32, "stderr": stderr}
+                )()
+                status = ShareManager(runner=runner, env={}).apply({"host": "nas", "share": "Music"})
+                self.assertEqual({"state": "error", "message": expected}, status)
+
     def test_runner_exception_reports_sanitized_error_status(self):
         def run(command, **kwargs):
             raise OSError("secret helper detail")

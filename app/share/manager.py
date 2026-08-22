@@ -82,10 +82,22 @@ class ShareManager:
             if credentials_path:
                 Path(credentials_path).unlink(missing_ok=True)
         if result.returncode:
-            self._status = {"state": "error", "message": "SMB mount failed"}
+            self._status = {"state": "error", "message": self._failure_message(result.stderr)}
         else:
             self._status = {"state": "connected", "source": source, "mount_point": str(self.MOUNT_POINT)}
         return dict(self._status)
+
+    @staticmethod
+    def _failure_message(stderr: str) -> str:
+        """Translate known mount.cifs failures without exposing helper output."""
+        detail = (stderr or "").lower()
+        if "could not resolve address" in detail:
+            return "SMB host could not be resolved; use the NAS IP address"
+        if "permission denied" in detail or "error(13)" in detail:
+            return "SMB server denied guest access"
+        if "unable to apply new capability set" in detail:
+            return "Container lacks capabilities required for SMB mounting"
+        return "SMB mount failed"
 
     def status(self) -> dict:
         if self._status["state"] == "connected":

@@ -80,7 +80,10 @@ class DeliveryIntegrationTests(unittest.TestCase):
         service = parsed["services"]["novin-music"]
 
         self.assertEqual(["ALL"], service["cap_drop"])
-        self.assertEqual(["SYS_ADMIN"], service["cap_add"])
+        self.assertEqual(
+            ["SYS_ADMIN", "DAC_READ_SEARCH", "DAC_OVERRIDE", "SETPCAP"],
+            service["cap_add"],
+        )
         self.assertEqual(["no-new-privileges:true"], service["security_opt"])
         self.assertNotRegex(compose, r"(?m)^\s*privileged\s*:")
         self.assertEqual(["host.docker.internal:host-gateway"], service["extra_hosts"])
@@ -114,7 +117,10 @@ class DeliveryIntegrationTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
         service = json.loads(completed.stdout)["services"]["novin-music"]
         self.assertEqual(["ALL"], service["cap_drop"])
-        self.assertEqual(["SYS_ADMIN"], service["cap_add"])
+        self.assertEqual(
+            ["SYS_ADMIN", "DAC_READ_SEARCH", "DAC_OVERRIDE", "SETPCAP"],
+            service["cap_add"],
+        )
         self.assertIs(True, service["read_only"])
         self.assertIn("healthcheck", service)
 

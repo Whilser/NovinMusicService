@@ -8,6 +8,9 @@ services:
       - ALL
     cap_add:
       - SYS_ADMIN
+      - DAC_READ_SEARCH
+      - DAC_OVERRIDE
+      - SETPCAP
     security_opt:
       - no-new-privileges:true
     environment:

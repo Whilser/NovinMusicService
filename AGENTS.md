@@ -88,7 +88,7 @@ docker-compose*.yml         persistent data, CIFS capability and AppArmor opt-in
 ## Подводные камни
 
 - `python3 -m uvicorn` without `NOVIN_DATA_DIR` creates `data/catalog.sqlite3` inside the checkout.
-- Production SMB mounting requires Linux CIFS support plus container `SYS_ADMIN`; the image intentionally runs as root but drops all other capabilities and never uses `privileged: true`.
+- Production SMB mounting requires Linux CIFS support plus the narrowly scoped container capabilities listed in Compose; the image intentionally runs as root, drops every capability before adding those required by `mount.cifs`, and never uses `privileged: true`.
 - `docker-compose.apparmor-unconfined.yml` weakens isolation for the whole service; use it only after a confirmed AppArmor denial of `mount.cifs`.
 - MPD must see the same file tree as `/music`; set only a relative `mpd_uri_prefix` when its `music_directory` contains the collection in a subfolder.
 - No authentication exists; bind to localhost or a trusted LAN and never expose this service directly to the internet.

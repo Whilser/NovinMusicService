@@ -19,7 +19,7 @@ docker compose up -d --build
 
 Для гостевой шары оставьте `SMB_USERNAME` и `SMB_PASSWORD` пустыми. Для авторизованной заполните обе переменные в локальном `.env`; домен, если он нужен, задаётся в веб-настройках. Не коммитьте `.env` и не вставляйте пароль в настройки браузера.
 
-Шара всегда монтируется read-only в `/music`. Дополнительные SMB-опции ограничены безопасным списком интерфейса (`vers`, `iocharset=utf8`, `noserverino`, `nounix`, `soft`). Контейнер работает как root, поскольку текущий `ShareManager` напрямую вызывает `mount.cifs`: непривилегированный Unix-пользователь не получает надёжного effective `SYS_ADMIN` для динамического mount. При этом Compose удаляет все capabilities, возвращает только `SYS_ADMIN`, запрещает новые привилегии, оставляет корневую файловую систему read-only и не использует `privileged: true`.
+Шара всегда монтируется read-only в `/music`. Дополнительные SMB-опции ограничены безопасным списком интерфейса (`vers`, `iocharset=utf8`, `noserverino`, `nounix`, `soft`). Контейнер работает как root, поскольку текущий `ShareManager` напрямую вызывает `mount.cifs`. Compose сначала удаляет все capabilities, затем возвращает только необходимые helper-у `SYS_ADMIN`, `DAC_READ_SEARCH`, `DAC_OVERRIDE` и `SETPCAP`, запрещает новые привилегии, оставляет корневую файловую систему read-only и не использует `privileged: true`.
 
 Основной Compose сохраняет стандартное AppArmor-ограничение Docker. Если только на Linux журнал ядра или `dmesg` явно показывает, что AppArmor блокирует `mount.cifs`, доступен осознанный opt-in:
 

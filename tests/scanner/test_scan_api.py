@@ -188,6 +188,7 @@ class ScanApiTests(unittest.TestCase):
                 failed = client.post("/api/share", json={"host": "nas", "share": "Music"})
                 self.assertEqual(failed.status_code, 503)
                 self.assertEqual(failed.json()["error"]["code"], "share_mount_failed")
+                self.assertEqual(failed.json()["error"]["message"], "SMB mount failed")
                 self.assertEqual(client.get("/api/share/status").json()["state"], "error")
 
 

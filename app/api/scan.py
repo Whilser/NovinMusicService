@@ -146,7 +146,10 @@ def apply_share(
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
-                "error": {"code": "share_mount_failed", "message": "SMB mount failed"},
+                "error": {
+                    "code": "share_mount_failed",
+                    "message": result.get("message", "SMB mount failed"),
+                },
                 "status": result,
             },
         )
