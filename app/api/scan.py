@@ -161,8 +161,26 @@ def start_scan(
 
 
 @router.get("/scan/status")
-def scan_status(jobs: ScanJobs = Depends(get_scan_jobs)) -> dict:
-    return jobs.status()
+def scan_status(
+    jobs: ScanJobs = Depends(get_scan_jobs),
+    catalog: Catalog = Depends(get_catalog),
+) -> dict:
+    current = jobs.status()
+    if current.get("state") != "idle":
+        return current
+    indexed = catalog.list_tracks(page=1, page_size=1)["total"]
+    if not indexed:
+        return current
+    return {
+        "state": "completed",
+        "counters": {
+            "discovered": indexed,
+            "indexed": indexed,
+            "unreadable": 0,
+            "unsupported": 0,
+            "removed": 0,
+        },
+    }
 
 
 @router.post("/share")

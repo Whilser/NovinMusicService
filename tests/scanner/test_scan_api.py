@@ -15,6 +15,17 @@ from app.share import ShareValidationError
 
 
 class ScanApiTests(unittest.TestCase):
+    def test_scan_status_is_restored_from_existing_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            application = create_app(data_dir=Path(directory) / "data", music_root=directory)
+            application.state.catalog.reconcile_tracks([{"path": "song.flac", "title": "Song"}])
+
+            with TestClient(application) as client:
+                restored = client.get("/api/scan/status").json()
+
+            self.assertEqual(restored["state"], "completed")
+            self.assertEqual(restored["counters"]["indexed"], 1)
+
     def test_cover_cache_survives_new_job_instance(self):
         with tempfile.TemporaryDirectory() as directory:
             cover_id = "c" * 64
