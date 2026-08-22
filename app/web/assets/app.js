@@ -12,7 +12,10 @@ const mobileRoutes = routes;
 const initialLocation = locationFromHash();
 const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "All" };
 const fullscreenPaletteCache = new Map();
-const radioFavorites = new Set(JSON.parse(localStorage.getItem("novin-radio-favorites") || "[]"));
+const storedRadioFavorites = JSON.parse(localStorage.getItem("novin-radio-favorites") || "{}");
+const radioFavoriteStations = new Map(Array.isArray(storedRadioFavorites) ? [] : Object.entries(storedRadioFavorites));
+const radioFavorites = new Set(radioFavoriteStations.keys());
+const radioStations = new Map();
 if (!location.hash) history.replaceState(null, "", "#/home");
 const dom = {
   content: document.querySelector("#content"), title: document.querySelector("#page-title"),
@@ -338,6 +341,7 @@ async function renderRadio() {
   const query = new URLSearchParams({ genre: state.radioGenre, limit: "24" });
   if (state.search) query.set("search", state.search);
   const result = await request(`/radio?${query}`);
+  result.stations.forEach((station) => radioStations.set(station.id, station));
   const sourceLabel = result.source === "shoutcast" ? "SHOUTCAST · PARTNER API" : "RADIO BROWSER · ОТКРЫТЫЙ КАТАЛОГ";
   const genres = element("div", { class: "radio-genres", attrs: { "aria-label": "Жанры радио" } }, result.genres.map((genre) => element("button", {
     class: genre === result.genre ? "active" : "", text: genre === "All" ? "Все" : genre, dataset: { action: "radio-genre", genre }, attrs: { type: "button" }
@@ -360,6 +364,16 @@ async function renderSongs(favorite = false) {
     const initials = await request(`/catalog/initials?${query}`);
     replace(dom.content, element("div", { class: "page-actions" }, [element("span", { text: `${result.total} треков` }), ...playButtons(result.items)]), trackList(result.items), pagination(result.total), alphabetIndex(initials.items.map((letter) => ({ letter })), "letter"));
   }
+}
+
+async function renderFavorites() {
+  const result = await loadTracks(true); state.tracks = result.items;
+  const stations = [...radioFavoriteStations.values()];
+  replace(dom.content,
+    stations.length ? section("Радиостанции", element("div", { class: "radio-grid" }, stations.map(radioCard))) : null,
+    result.items.length ? section("Песни", trackList(result.items)) : null,
+    !stations.length && !result.items.length ? empty("Избранное пока пусто", "Добавляйте любимые песни сердцем или сохраняйте радиостанции.") : null
+  );
 }
 
 async function renderSelectedGroup(type, name, albumArtist = "") {
@@ -441,7 +455,7 @@ async function render() {
     else if ((state.route === "albums" || state.route === "artists") && state.selected?.type) await renderSelectedGroup(state.selected.type, state.selected.name, state.selected.albumArtist);
     else if (state.route === "albums" || state.route === "artists") await renderGroups(state.route);
     else if (state.route === "songs") await renderSongs(false);
-    else if (state.route === "favorites") await renderSongs(true);
+    else if (state.route === "favorites") await renderFavorites();
     else if (state.route === "playlists" && state.selected?.id) await renderPlaylist(state.selected.id);
     else if (state.route === "playlists") await renderPlaylists();
     else if (state.route === "settings") await renderSettings();
@@ -459,7 +473,7 @@ async function setPreference(id, change) {
 async function redrawCurrent() {
   if (state.selected?.id && state.route === "playlists") await renderPlaylist(state.selected.id);
   else if (state.selected?.type) await renderSelectedGroup(state.selected.type, state.selected.name, state.selected.albumArtist);
-  else if (state.route === "songs") await renderSongs(false); else if (state.route === "favorites") await renderSongs(true); else await render();
+  else if (state.route === "songs") await renderSongs(false); else if (state.route === "favorites") await renderFavorites(); else await render();
 }
 async function play(ids, shuffle = false) { try { await request("/player/play", { method: "POST", body: JSON.stringify({ track_ids: ids.map(Number), shuffle }) }); await pollPlayer(); } catch (error) { notify(apiMessage(error)); } }
 async function playFromTrack(id) {
@@ -505,7 +519,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
   else if (action === "radio-genre") { state.radioGenre = button.dataset.genre; await renderRadio(); }
-  else if (action === "radio-favorite") { if (radioFavorites.has(button.dataset.id)) radioFavorites.delete(button.dataset.id); else radioFavorites.add(button.dataset.id); localStorage.setItem("novin-radio-favorites", JSON.stringify([...radioFavorites])); await renderRadio(); }
+  else if (action === "radio-favorite") { const station = radioStations.get(button.dataset.id); if (radioFavorites.has(button.dataset.id)) { radioFavorites.delete(button.dataset.id); radioFavoriteStations.delete(button.dataset.id); } else if (station) { radioFavorites.add(button.dataset.id); radioFavoriteStations.set(button.dataset.id, station); } localStorage.setItem("novin-radio-favorites", JSON.stringify(Object.fromEntries(radioFavoriteStations))); await (state.route === "favorites" ? renderFavorites() : renderRadio()); }
   else if (action === "play-radio") { try { await request("/radio/play", { method: "POST", body: JSON.stringify({ station_id: button.dataset.id }) }); await pollPlayer(); notify("Станция загружена в MPD"); } catch (error) { notify(apiMessage(error)); } }
   else if (action === "pause-track") await command("pause");
   else if (action === "play-list" || action === "shuffle-list") await play(button.dataset.ids.split(","), action === "shuffle-list");
