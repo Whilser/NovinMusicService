@@ -232,17 +232,18 @@ class Catalog:
 
     def list_albums(self, page: int = 1, page_size: int = 50) -> dict[str, Any]:
         limit, offset = self._page(page, page_size)
-        artist = "COALESCE(NULLIF(album_artist,''),artist)"
         total = self._connection.execute(
-            f"""SELECT COUNT(*) FROM (
-                    SELECT album,{artist} FROM tracks WHERE album<>'' GROUP BY album,{artist}
-                )"""
+            "SELECT COUNT(DISTINCT album) FROM tracks WHERE album<>''"
         ).fetchone()[0]
         rows = self._connection.execute(
-            f"""SELECT album AS name,{artist} AS album_artist,COUNT(*) AS track_count,
+            """SELECT album AS name,
+                       CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(album_artist,''),artist)) = 1
+                            THEN MAX(COALESCE(NULLIF(album_artist,''),artist))
+                            ELSE 'Разные исполнители' END AS album_artist,
+                       COUNT(*) AS track_count,
                        COALESCE(SUM(duration),0) AS duration,MAX(cover_url) AS cover_url
-                FROM tracks WHERE album<>'' GROUP BY album,{artist}
-                ORDER BY album COLLATE NOCASE,{artist} COLLATE NOCASE LIMIT ? OFFSET ?""",
+                FROM tracks WHERE album<>'' GROUP BY album
+                ORDER BY album COLLATE NOCASE LIMIT ? OFFSET ?""",
             (limit, offset),
         ).fetchall()
         return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}

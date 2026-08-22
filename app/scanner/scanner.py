@@ -57,11 +57,15 @@ class Scanner:
                 continue
             embedded = metadata.pop("embedded_cover", None)
             cover = _make_cover(embedded) if embedded else _directory_cover(path.parent)
+            album = _text(metadata.get("album"), "")
+            if not album:
+                relative_parent = path.relative_to(root).parent
+                album = relative_parent.name if relative_parent != Path(".") else "Неизвестный альбом"
             row = {
                 "path": path.relative_to(root).as_posix(),
                 "title": _text(metadata.get("title"), "Без названия"),
                 "artist": _text(metadata.get("artist"), "Неизвестный исполнитель"),
-                "album": _text(metadata.get("album"), "Неизвестный альбом"),
+                "album": album,
                 "album_artist": _text(metadata.get("album_artist"), ""),
                 "track_no": _number(metadata.get("track_no")),
                 "disc_no": _number(metadata.get("disc_no")),

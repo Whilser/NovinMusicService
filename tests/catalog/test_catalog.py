@@ -81,7 +81,7 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertEqual(catalog.list_artists()["total"], 2)
             catalog.close()
 
-    def test_same_album_title_by_different_album_artists_stays_separate(self):
+    def test_same_album_title_by_different_artists_forms_one_compilation(self):
         with tempfile.TemporaryDirectory() as directory:
             catalog = Catalog(Path(directory) / "catalog.sqlite3")
             catalog.reconcile_tracks(
@@ -91,8 +91,8 @@ class CatalogQueryTests(unittest.TestCase):
                 ]
             )
             albums = catalog.list_albums()
-            self.assertEqual(albums["total"], 2)
-            self.assertEqual({item["album_artist"] for item in albums["items"]}, {"Alpha", "Beta"})
+            self.assertEqual(albums["total"], 1)
+            self.assertEqual(albums["items"][0]["album_artist"], "Разные исполнители")
             catalog.close()
 
 

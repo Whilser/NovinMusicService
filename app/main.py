@@ -24,8 +24,10 @@ def _error(code: str, message: str, details=None) -> dict:
 
 def create_app(data_dir: Optional[Path] = None, music_root: Optional[Path] = None) -> FastAPI:
     resolved_data_dir = Path(data_dir or os.environ.get("NOVIN_DATA_DIR", "data"))
+    resolved_data_dir.mkdir(parents=True, exist_ok=True)
     application = FastAPI(title="Novin Music Service")
     application.state.catalog = Catalog(resolved_data_dir / "catalog.sqlite3")
+    application.state.cover_dir = resolved_data_dir / "covers"
     application.state.music_root = Path(music_root or os.environ.get("NOVIN_MUSIC_ROOT", "/music"))
 
     @application.exception_handler(CatalogError)

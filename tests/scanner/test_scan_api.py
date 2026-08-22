@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.api.scan import get_scanner, get_share_manager
+from app.api.scan import ScanJobs, get_scanner, get_share_manager
 from app.catalog import Catalog
 from app.dependencies import get_catalog
 from app.main import create_app
@@ -15,6 +15,20 @@ from app.share import ShareValidationError
 
 
 class ScanApiTests(unittest.TestCase):
+    def test_cover_cache_survives_new_job_instance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cover_id = "c" * 64
+            payload = b"\x89PNG\r\n\x1a\ncover-bytes"
+            cover_dir = Path(directory) / "covers"
+
+            jobs = ScanJobs(cover_dir)
+            jobs._persist_covers({cover_id: CoverAsset(payload, "image/png", cover_id)})
+
+            restored = ScanJobs(cover_dir).cover(cover_id)
+            self.assertIsNotNone(restored)
+            self.assertEqual(restored.data, payload)
+            self.assertEqual(restored.mime_type, "image/png")
+
     def test_scan_reconciles_catalog_and_rejects_parallel_start(self):
         with tempfile.TemporaryDirectory() as directory:
             entered = threading.Event()

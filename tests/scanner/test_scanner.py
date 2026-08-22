@@ -20,8 +20,19 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(snapshot.tracks[0]["path"], "Artist/Album/01 Song.FLAC")
             self.assertEqual(snapshot.tracks[0]["title"], "Без названия")
             self.assertEqual(snapshot.tracks[0]["artist"], "Неизвестный исполнитель")
-            self.assertEqual(snapshot.tracks[0]["album"], "Неизвестный альбом")
+            self.assertEqual(snapshot.tracks[0]["album"], "Album")
             self.assertEqual(snapshot.tracks[0]["duration"], 125.5)
+
+    def test_missing_album_tag_uses_its_parent_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "Compilation" / "Disc One" / "song.flac"
+            audio.parent.mkdir(parents=True)
+            audio.write_bytes(b"audio")
+
+            snapshot = Scanner(metadata_reader=lambda path: {"title": "Song"}).scan(root)
+
+            self.assertEqual(snapshot.tracks[0]["album"], "Disc One")
 
     def test_embedded_cover_wins_over_named_folder_cover(self):
         with tempfile.TemporaryDirectory() as directory:

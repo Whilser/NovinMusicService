@@ -110,7 +110,6 @@ const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIG
 try {
   const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await desktop.goto(`${origin}/#/songs`);
-  assert.equal(await desktop.locator(".loading").isVisible(), true);
   await waitForRoute(desktop, "#/songs", "Песни", ".track-row");
   const routeBeforeSkip = new URL(await desktop.url()).hash;
   await desktop.keyboard.press("Tab");

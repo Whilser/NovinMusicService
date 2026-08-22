@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import threading
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Dict
 
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -26,10 +28,11 @@ class ShareInput(BaseModel):
 
 
 class ScanJobs:
-    def __init__(self):
+    def __init__(self, cover_dir: Path | None = None):
         self._lock = threading.Lock()
         self._status = {"state": "idle", "counters": self._empty_counters()}
         self._covers: Dict[str, CoverAsset] = {}
+        self._cover_dir = Path(cover_dir) if cover_dir else None
 
     @staticmethod
     def _empty_counters() -> dict:
@@ -55,6 +58,7 @@ class ScanJobs:
                 if share_status.get("state") != "connected":
                     raise ShareError("SMB mount failed")
             snapshot = scanner.scan(root, progress=self._progress)
+            self._persist_covers(snapshot.covers)
             reconciliation = catalog.reconcile_tracks(snapshot.tracks)
         except Exception as error:
             with self._lock:
@@ -81,7 +85,40 @@ class ScanJobs:
 
     def cover(self, cover_id: str):
         with self._lock:
-            return self._covers.get(cover_id)
+            cached = self._covers.get(cover_id)
+        if cached is not None:
+            return cached
+        if not self._cover_dir or len(cover_id) != 64 or not cover_id.isalnum():
+            return None
+        path = self._cover_dir / cover_id
+        try:
+            data = path.read_bytes()
+        except OSError:
+            return None
+        if not data or len(data) > MAX_COVER_BYTES:
+            return None
+        return CoverAsset(data, _cover_mime(data), cover_id)
+
+    def _persist_covers(self, covers: Dict[str, CoverAsset]) -> None:
+        if not self._cover_dir:
+            return
+        self._cover_dir.mkdir(parents=True, exist_ok=True)
+        for cover_id, asset in covers.items():
+            destination = self._cover_dir / cover_id
+            temporary = self._cover_dir / f".{cover_id}.tmp"
+            with open(temporary, "wb") as handle:
+                handle.write(asset.data)
+            os.replace(temporary, destination)
+
+
+def _cover_mime(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    return "application/octet-stream"
 
 
 @lru_cache(maxsize=1)
@@ -91,7 +128,7 @@ def get_scanner() -> Scanner:
 
 def get_scan_jobs(request: Request) -> ScanJobs:
     if not hasattr(request.app.state, "scan_jobs"):
-        request.app.state.scan_jobs = ScanJobs()
+        request.app.state.scan_jobs = ScanJobs(request.app.state.cover_dir)
     return request.app.state.scan_jobs
 
 
