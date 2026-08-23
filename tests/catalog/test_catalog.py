@@ -97,6 +97,23 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertEqual(albums["items"][0]["album_artist"], "Разные исполнители")
             catalog.close()
 
+    def test_album_favorite_is_persisted_and_filterable_separately_from_tracks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "catalog.sqlite3"
+            catalog = Catalog(database)
+            catalog.reconcile_tracks([
+                {"path": "one.flac", "title": "One", "artist": "Alpha", "album": "First"},
+                {"path": "two.flac", "title": "Two", "artist": "Beta", "album": "Second"},
+            ])
+            self.assertEqual(catalog.set_album_favorite("First", True), {"album": "First", "favorite": True})
+            self.assertTrue(next(item for item in catalog.list_albums()["items"] if item["name"] == "First")["favorite"])
+            self.assertEqual([item["name"] for item in catalog.list_albums(favorite=True)["items"]], ["First"])
+            catalog.close()
+
+            reopened = Catalog(database)
+            self.assertTrue(reopened.list_albums(favorite=True)["items"][0]["favorite"])
+            reopened.close()
+
     def test_artists_return_cached_image_state_without_cover_fan_out(self):
         with tempfile.TemporaryDirectory() as directory:
             catalog = Catalog(Path(directory) / "catalog.sqlite3")

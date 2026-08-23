@@ -281,8 +281,12 @@ function albumCard(item, type = "album") {
   const name = item.name || item.album || "Без названия";
   const albumArtist = item.album_artist || "";
   const cardItem = type === "artist" ? { ...item, artist_image: item.name } : item;
+  const coverButton = element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist, returnPage: String(state.page) }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem, "cover", { albumPlaceholder: type === "album", albumName: name, artistName: albumArtist })]);
+  const coverActions = type === "album"
+    ? element("div", { class: "album-card-cover" }, [coverButton, iconButton(item.favorite ? "Убрать альбом из избранного" : "Добавить альбом в избранное", "heart", "album-favorite", { album: name, active: String(!item.favorite) }, Boolean(item.favorite))])
+    : coverButton;
   return element("article", { class: "card" }, [
-    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist, returnPage: String(state.page) }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem, "cover", { albumPlaceholder: type === "album", albumName: name, artistName: albumArtist })]),
+    coverActions,
     element("h3", { text: name }), element("p", { text: item.artist || item.album_artist || `${item.track_count || 0} треков` })
   ]);
 }
@@ -469,11 +473,12 @@ async function renderSongs(favorite = false) {
 
 async function renderFavorites() {
   const result = await loadTracks(true); state.tracks = result.items;
-  const stations = await loadRadioFavorites();
+  const [stations, albums] = await Promise.all([loadRadioFavorites(), request("/albums?favorite=true&page_size=50")]);
   replace(dom.content,
     stations.length ? section("Радиостанции", element("div", { class: "radio-grid" }, stations.map(radioCard))) : null,
+    albums.items.length ? section("Альбомы", element("div", { class: "grid catalog-grid" }, albums.items.map((item) => albumCard(item, "album")))) : null,
     result.items.length ? section("Песни", trackList(result.items)) : null,
-    !stations.length && !result.items.length ? empty("Избранное пока пусто", "Добавляйте любимые песни сердцем или сохраняйте радиостанции.") : null
+    !stations.length && !albums.items.length && !result.items.length ? empty("Избранное пока пусто", "Добавляйте любимые песни, альбомы сердцем или сохраняйте радиостанции.") : null
   );
 }
 
@@ -590,6 +595,12 @@ async function setPreference(id, change) {
   catch (error) { Object.assign(item, previous); notify(apiMessage(error)); }
   if (state.selected?.tracks) state.selected.tracks = state.tracks; await redrawCurrent();
 }
+async function setAlbumFavorite(album, favorite) {
+  try {
+    await request("/albums/favorite", { method: "PUT", body: JSON.stringify({ album, favorite }) });
+    await render();
+  } catch (error) { notify(apiMessage(error)); }
+}
 async function redrawCurrent() {
   if (state.selected?.id && state.route === "playlists") await renderPlaylist(state.selected.id);
   else if (state.selected?.type) await renderSelectedGroup(state.selected.type, state.selected.name, state.selected.albumArtist);
@@ -644,6 +655,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "back-group") { state.selected = null; const next = routePath(button.dataset.route, Number(button.dataset.page) || 1); if (location.hash === next) await render(); else location.hash = next; }
   else if (action === "select-group") { const next = selectedPath(button.dataset.type, button.dataset.name, button.dataset.albumArtist, Number(button.dataset.returnPage) || 1); if (location.hash === next) await renderSelectedGroup(button.dataset.type, button.dataset.name, button.dataset.albumArtist); else location.hash = next; }
   else if (action === "favorite") await setPreference(button.dataset.id, { favorite: button.dataset.active === "true" });
+  else if (action === "album-favorite") await setAlbumFavorite(button.dataset.album, button.dataset.active === "true");
   else if (action === "rate") { const item = state.tracks.find((track) => track.id === Number(button.dataset.id)); await setPreference(button.dataset.id, { rating: item?.rating === Number(button.dataset.value) ? 0 : Number(button.dataset.value) }); }
   else if (action === "play-one") await playFromTrack(button.dataset.id);
   else if (action === "radio-genre") { state.radioGenre = button.dataset.genre; await renderRadio(true); }

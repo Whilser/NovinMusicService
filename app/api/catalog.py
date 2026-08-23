@@ -30,6 +30,11 @@ class PreferenceInput(BaseModel):
     favorite: Optional[bool] = None
 
 
+class AlbumFavoriteInput(BaseModel):
+    album: str = Field(min_length=1, max_length=500)
+    favorite: bool
+
+
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -52,10 +57,10 @@ def tracks(
 
 
 @router.get("/albums")
-def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200), search: str = "",
+def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200), search: str = "", favorite: Optional[bool] = None,
            sort: str = Query(default="alphabet", pattern="^(alphabet|recent)$"),
            catalog: Catalog = Depends(get_catalog)) -> dict:
-    return catalog.list_albums(page=page, page_size=page_size, search=search, sort=sort)
+    return catalog.list_albums(page=page, page_size=page_size, search=search, sort=sort, favorite=favorite)
 
 
 @router.get("/albums/recent")
@@ -179,6 +184,11 @@ def reorder_playlist(playlist_id: int, body: PlaylistOrderInput,
 @router.put("/tracks/{track_id}/preference")
 def preference(track_id: int, body: PreferenceInput, catalog: Catalog = Depends(get_catalog)) -> dict:
     return catalog.set_preference(track_id, rating=body.rating, favorite=body.favorite)
+
+
+@router.put("/albums/favorite")
+def album_favorite(body: AlbumFavoriteInput, catalog: Catalog = Depends(get_catalog)) -> dict:
+    return catalog.set_album_favorite(body.album, body.favorite)
 
 
 @router.get("/settings")

@@ -89,6 +89,10 @@ class Catalog:
                     rating INTEGER CHECK (rating BETWEEN 0 AND 5),
                     favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1))
                 );
+                CREATE TABLE IF NOT EXISTS album_preferences (
+                    album TEXT PRIMARY KEY COLLATE NOCASE,
+                    favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1))
+                );
                 CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL,
@@ -304,44 +308,71 @@ class Catalog:
         return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
 
     def list_albums(
-        self, page: int = 1, page_size: int = 50, search: str = "", sort: str = "alphabet"
+        self, page: int = 1, page_size: int = 50, search: str = "", sort: str = "alphabet",
+        favorite: Optional[bool] = None,
     ) -> dict[str, Any]:
         if sort not in {"alphabet", "recent"}:
             raise ValidationError("album sort must be alphabet or recent", {"field": "sort"})
         limit, offset = self._page(page, page_size)
-        clause, params = self._group_search_clause("album", search)
-        order = "album COLLATE NOCASE" if sort == "alphabet" else "MAX(id) DESC,album COLLATE NOCASE"
+        clauses = ["t.album<>''"]
+        params: list[Any] = []
+        if search.strip():
+            clauses.append("t.album LIKE ?")
+            params.append(f"%{search.strip()}%")
+        if favorite is not None:
+            clauses.append("COALESCE(ap.favorite,0)=?")
+            params.append(int(favorite))
+        where = " WHERE " + " AND ".join(clauses)
+        order = "t.album COLLATE NOCASE" if sort == "alphabet" else "MAX(t.id) DESC,t.album COLLATE NOCASE"
         total = self._connection.execute(
-            f"SELECT COUNT(DISTINCT album) FROM tracks WHERE album<>''{clause}", params
+            "SELECT COUNT(DISTINCT t.album) FROM tracks t LEFT JOIN album_preferences ap ON ap.album=t.album" + where,
+            params,
         ).fetchone()[0]
         rows = self._connection.execute(
-            """SELECT album AS name,
-                       CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(album_artist,''),artist)) = 1
-                            THEN MAX(COALESCE(NULLIF(album_artist,''),artist))
+            """SELECT t.album AS name,
+                       CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(t.album_artist,''),t.artist)) = 1
+                            THEN MAX(COALESCE(NULLIF(t.album_artist,''),t.artist))
                             ELSE 'Разные исполнители' END AS album_artist,
                        COUNT(*) AS track_count,
-                       COALESCE(SUM(duration),0) AS duration,MAX(cover_url) AS cover_url
-                FROM tracks WHERE album<>''""" + clause + """ GROUP BY album
+                       COALESCE(SUM(t.duration),0) AS duration,MAX(t.cover_url) AS cover_url,
+                       CAST(COALESCE(MAX(ap.favorite),0) AS INTEGER) AS favorite
+                FROM tracks t LEFT JOIN album_preferences ap ON ap.album=t.album""" + where + """ GROUP BY t.album
                 ORDER BY """ + order + """ LIMIT ? OFFSET ?""",
             (*params, limit, offset),
         ).fetchall()
-        return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total, "sort": sort}
+        return {"items": [{**dict(row), "favorite": bool(row["favorite"])} for row in rows], "page": page, "page_size": page_size, "total": total, "sort": sort}
 
     def list_recent_albums(self, limit: int = 7) -> list[dict[str, Any]]:
         if not isinstance(limit, int) or not 1 <= limit <= 50:
             raise ValidationError("limit must be between 1 and 50", {"field": "limit"})
         rows = self._connection.execute(
-            """SELECT album AS name,
-                       CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(album_artist,''),artist)) = 1
-                            THEN MAX(COALESCE(NULLIF(album_artist,''),artist))
+            """SELECT t.album AS name,
+                       CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(t.album_artist,''),t.artist)) = 1
+                            THEN MAX(COALESCE(NULLIF(t.album_artist,''),t.artist))
                             ELSE 'Разные исполнители' END AS album_artist,
-                       COUNT(*) AS track_count, COALESCE(SUM(duration),0) AS duration,
-                       MAX(cover_url) AS cover_url
-                FROM tracks WHERE album<>'' GROUP BY album
-                ORDER BY MAX(id) DESC LIMIT ?""",
+                       COUNT(*) AS track_count, COALESCE(SUM(t.duration),0) AS duration,
+                       MAX(t.cover_url) AS cover_url,CAST(COALESCE(MAX(ap.favorite),0) AS INTEGER) AS favorite
+                FROM tracks t LEFT JOIN album_preferences ap ON ap.album=t.album WHERE t.album<>'' GROUP BY t.album
+                ORDER BY MAX(t.id) DESC LIMIT ?""",
             (limit,),
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [{**dict(row), "favorite": bool(row["favorite"])} for row in rows]
+
+    def set_album_favorite(self, album: str, favorite: bool) -> dict[str, Any]:
+        album = album.strip()
+        if not album:
+            raise ValidationError("album is required", {"field": "album"})
+        if not isinstance(favorite, bool):
+            raise ValidationError("favorite must be a boolean", {"field": "favorite"})
+        with self._lock, self._connection:
+            if self._connection.execute("SELECT 1 FROM tracks WHERE album=?", (album,)).fetchone() is None:
+                raise NotFoundError("album not found", {"album": album})
+            self._connection.execute(
+                """INSERT INTO album_preferences(album,favorite) VALUES (?,?)
+                   ON CONFLICT(album) DO UPDATE SET favorite=excluded.favorite""",
+                (album, int(favorite)),
+            )
+        return {"album": album, "favorite": favorite}
 
     def list_artists(self, page: int = 1, page_size: int = 50, search: str = "") -> dict[str, Any]:
         limit, offset = self._page(page, page_size)

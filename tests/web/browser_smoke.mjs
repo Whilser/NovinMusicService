@@ -23,6 +23,7 @@ let nextPlaylist = 1;
 let failTracks = false;
 let trackDelay = 180;
 let player = { online: false, state: "offline", song: null, message: "offline" };
+const favoriteAlbums = new Set();
 const requests = [];
 
 function json(response, status, body) {
@@ -77,7 +78,16 @@ const server = http.createServer(async (request, response) => {
     const offset = Number(url.searchParams.get("offset") || 0); const limit = Number(url.searchParams.get("limit") || 50);
     return json(response, 200, { items: found.slice(offset, offset + limit), total: found.length, offset, limit });
   }
-  if (url.pathname === "/api/albums") return json(response, 200, { items: albumGroups, total: albumGroups.length });
+  if (url.pathname === "/api/albums") {
+    const favorite = url.searchParams.get("favorite");
+    const items = albumGroups.filter((item) => favorite !== "true" || favoriteAlbums.has(item.name)).map((item) => ({ ...item, favorite: favoriteAlbums.has(item.name) }));
+    return json(response, 200, { items, total: items.length });
+  }
+  if (url.pathname === "/api/albums/favorite" && request.method === "PUT") {
+    const input = await body(request); requests.push({ method: request.method, path: url.pathname, body: input });
+    if (input.favorite) favoriteAlbums.add(input.album); else favoriteAlbums.delete(input.album);
+    return json(response, 200, { album: input.album, favorite: input.favorite });
+  }
   if (url.pathname === "/api/artists") return json(response, 200, { items: [{ name: "Artist A", track_count: 2 }, { name: "Artist B", track_count: 1 }], total: 2 });
   if (url.pathname === "/api/catalog/initials") return json(response, 200, { items: ["A", "B"] });
   if (url.pathname === "/api/playlists" && request.method === "GET") return json(response, 200, playlists.map((item) => ({ ...item, track_count: item.tracks.length })));
@@ -135,6 +145,9 @@ try {
   requests.splice(0);
   await desktop.getByRole("button", { name: "Назад к списку: альбомы" }).click();
   await waitForRoute(desktop, "#/albums", "Альбомы", '[data-action="select-group"][data-type="album"]');
+  await desktop.getByRole("button", { name: "Добавить альбом в избранное" }).first().click();
+  await waitFor(() => requests.some((item) => item.path === "/api/albums/favorite"));
+  await desktop.getByRole("button", { name: "Убрать альбом из избранного" }).first().waitFor();
   await desktop.getByRole("button", { name: "Страница 2" }).click();
   await desktop.waitForFunction(() => document.querySelector('[data-action="select-group"][data-name="Archive 22"]'));
   assert.equal(await desktop.locator('[data-action="select-group"][data-name="Archive 22"]').getAttribute("data-return-page"), "2");
