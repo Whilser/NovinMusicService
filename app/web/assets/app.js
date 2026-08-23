@@ -465,6 +465,10 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
   dom.title.textContent = name;
   const representative = items[0] || { album: name, artist: albumArtist };
   const subtitle = type === "album" ? (albumArtist || representative.artist || "Неизвестный исполнитель") : "Исполнитель";
+  const totalMinutes = Math.round(items.reduce((total, item) => total + (Number(item.duration) || 0), 0) / 60);
+  const detailMeta = type === "album"
+    ? `${items.length} ${items.length === 1 ? "песня" : "песен"} · ${totalMinutes} мин`
+    : `${items.length} ${items.length === 1 ? "песня" : "песен"}`;
   const listRoute = type === "album" ? "albums" : "artists";
   const detail = element("section", { class: "detail-hero" }, [
     cover(representative, "detail-cover"),
@@ -472,7 +476,7 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
       element("p", { class: "detail-kind", text: type === "album" ? "Альбом" : "Исполнитель" }),
       element("h2", { text: name }),
       element("p", { class: "detail-artist", text: subtitle }),
-      element("p", { class: "detail-meta", text: `${items.length} ${items.length === 1 ? "песня" : "песен"}` }),
+      element("p", { class: "detail-meta", text: detailMeta }),
       element("div", { class: "detail-actions" }, playButtons(items))
     ])
   ]);
