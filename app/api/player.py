@@ -47,6 +47,9 @@ class _InvalidMpdClient:
     def play_stream(self, stream_url: str):
         raise self.error
 
+    def update_database(self, timeout: float = 120.0):
+        raise self.error
+
 
 def get_mpd_client(catalog: Catalog = Depends(get_catalog)):
     settings = catalog.get_settings()

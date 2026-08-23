@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import socket
+import time
 from ipaddress import ip_address
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Optional
@@ -162,6 +163,22 @@ class MpdClient:
     def status(self) -> dict[str, Any]:
         status, song = self._run(["status", "currentsong"])
         return {"online": True, **status, "song": song or None}
+
+    def update_database(self, timeout: float = 120.0) -> None:
+        """Wait until MPD has indexed the mounted music tree.
+
+        This changes only MPD's file database: the active queue and MPD's own
+        saved playlists are deliberately left intact.
+        """
+        update = self._run(["update"])[0]
+        if "updating_db" not in update:
+            return
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if "updating_db" not in self._run(["status"])[0]:
+                return
+            time.sleep(0.25)
+        raise MpdCommandError("MPD database update timed out")
 
     def command(self, name: str, **params: Any) -> dict[str, Any]:
         if name not in _COMMAND_PARAMS:

@@ -139,6 +139,16 @@ class MpdClientTests(unittest.TestCase):
             with self.assertRaises(MpdCommandError):
                 client.play_stream("http://127.0.0.1/stream")
 
+    def test_update_database_waits_for_mpd_indexer_without_touching_queue(self):
+        responses = {
+            "update": ["updating_db: 1", "OK"],
+            "status": ["state: stop", "OK"],
+        }
+        with FakeMpdServer(responses) as server:
+            client = MpdClient("127.0.0.1", server.port, timeout=0.5)
+            client.update_database(timeout=0.5)
+            self.assertEqual(server.server.commands, ["update", "status"])
+
     def test_transport_whitelist_maps_to_mpd_commands_and_returns_status(self):
         responses = {"status": ["state: pause", "OK"], "currentsong": ["OK"]}
         with FakeMpdServer(responses) as server:

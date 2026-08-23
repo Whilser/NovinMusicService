@@ -4,12 +4,13 @@ import threading
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict
+from typing import Callable, Dict
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from app.api.player import get_mpd_client
 from app.catalog import Catalog
 from app.dependencies import get_catalog
 from app.scanner import CoverAsset, Scanner
@@ -38,20 +39,36 @@ class ScanJobs:
     def _empty_counters() -> dict:
         return {"discovered": 0, "indexed": 0, "unreadable": 0, "unsupported": 0}
 
-    def start(self, scanner: Scanner, root, catalog: Catalog, manager: ShareManager, settings: dict) -> bool:
+    def start(
+        self,
+        scanner: Scanner,
+        root,
+        catalog: Catalog,
+        manager: ShareManager,
+        settings: dict,
+        mpd_update: Callable[[], None] | None = None,
+    ) -> bool:
         with self._lock:
             if self._status["state"] == "running":
                 return False
             self._status = {"state": "running", "counters": self._empty_counters()}
         threading.Thread(
             target=self._run,
-            args=(scanner, root, catalog, manager, settings),
+            args=(scanner, root, catalog, manager, settings, mpd_update),
             name="novin-library-scan",
             daemon=True,
         ).start()
         return True
 
-    def _run(self, scanner: Scanner, root, catalog: Catalog, manager: ShareManager, settings: dict) -> None:
+    def _run(
+        self,
+        scanner: Scanner,
+        root,
+        catalog: Catalog,
+        manager: ShareManager,
+        settings: dict,
+        mpd_update: Callable[[], None] | None,
+    ) -> None:
         try:
             if settings.get("host") and settings.get("share"):
                 share_status = manager.apply(settings)
@@ -60,6 +77,8 @@ class ScanJobs:
             snapshot = scanner.scan(root, progress=self._progress)
             self._persist_covers(snapshot.covers)
             reconciliation = catalog.reconcile_tracks(snapshot.tracks)
+            if mpd_update is not None:
+                mpd_update()
         except Exception as error:
             with self._lock:
                 self._status = {
@@ -144,6 +163,7 @@ def start_scan(
     jobs: ScanJobs = Depends(get_scan_jobs),
     manager: ShareManager = Depends(get_share_manager),
     catalog: Catalog = Depends(get_catalog),
+    client=Depends(get_mpd_client),
 ):
     saved = catalog.get_settings()
     share_settings = {
@@ -152,7 +172,8 @@ def start_scan(
         "domain": saved.get("smb_domain", ""),
         "options": saved.get("smb_options", ""),
     }
-    if not jobs.start(scanner, request.app.state.music_root, catalog, manager, share_settings):
+    mpd_update = client.update_database if saved.get("mpd_host") else None
+    if not jobs.start(scanner, request.app.state.music_root, catalog, manager, share_settings, mpd_update):
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"error": {"code": "scan_in_progress", "message": "a scan is already running"}},

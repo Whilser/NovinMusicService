@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.api.scan import ScanJobs, get_scanner, get_share_manager
+from app.api.player import get_mpd_client
 from app.catalog import Catalog
 from app.dependencies import get_catalog
 from app.main import create_app
@@ -56,8 +57,18 @@ class ScanApiTests(unittest.TestCase):
                         {},
                     )
 
+            class MpdUpdater:
+                def __init__(self):
+                    self.calls = 0
+
+                def update_database(self):
+                    self.calls += 1
+
             application = create_app(data_dir=Path(directory) / "data", music_root=directory)
+            mpd = MpdUpdater()
             application.dependency_overrides[get_scanner] = lambda: BlockingScanner()
+            application.dependency_overrides[get_mpd_client] = lambda: mpd
+            application.state.catalog.update_settings({"mpd_host": "novin"})
             with TestClient(application) as client:
                 started = client.post("/api/scan")
                 self.assertEqual(started.status_code, 202)
@@ -75,6 +86,7 @@ class ScanApiTests(unittest.TestCase):
                 self.assertEqual(status["state"], "completed")
                 tracks = client.get("/api/tracks").json()
                 self.assertEqual([track["title"] for track in tracks["items"]], ["Scanned"])
+                self.assertEqual(mpd.calls, 1)
                 placeholder_url = tracks["items"][0]["cover_url"]
                 placeholder = client.get(placeholder_url)
                 self.assertEqual(placeholder.status_code, 200)
