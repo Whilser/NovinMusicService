@@ -490,6 +490,10 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
     ? `${items.length} ${items.length === 1 ? "песня" : "песен"} · ${totalMinutes} мин`
     : `${items.length} ${items.length === 1 ? "песня" : "песен"}`;
   const listRoute = type === "album" ? "albums" : "artists";
+  const topbar = dom.title.closest(".topbar");
+  // This view can be refreshed in place after rating/favorite changes. Keep one
+  // persistent back button instead of appending another button on every refresh.
+  topbar.querySelector(".detail-back")?.remove();
   const detail = element("section", { class: "detail-hero" }, [
     cover(representative, "detail-cover", { albumPlaceholder: type === "album", albumName: name, artistName: subtitle }),
     element("div", { class: "detail-copy" }, [
@@ -501,7 +505,6 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
     ])
   ]);
   const back = element("button", { class: "detail-back", dataset: { action: "back-group", route: listRoute, page: String(state.selected?.returnPage || 1) }, attrs: { type: "button", "aria-label": `Назад к списку: ${listRoute === "albums" ? "альбомы" : "исполнители"}` } }, [icon("back", 26)]);
-  const topbar = dom.title.closest(".topbar");
   topbar.classList.add("has-detail-back");
   topbar.insertBefore(back, dom.title.parentElement);
   replace(dom.content, detail, items.length ? trackList(items, { compact: true }) : empty("Треки не найдены", "Вернитесь к медиатеке и попробуйте снова."));
