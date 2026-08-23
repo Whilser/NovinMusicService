@@ -230,6 +230,21 @@ class RadioStationPersistenceTests(unittest.TestCase):
             self.assertTrue(catalog.get_radio_station("station-1", include_blacklisted=True)["blacklisted"])
             catalog.close()
 
+    def test_radio_catalog_snapshot_is_persisted_and_excludes_blacklisted_stations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Catalog(Path(directory) / "catalog.sqlite3")
+            stations = [
+                {"id": "station-1", "name": "Novin FM", "stream_url": "https://radio.example/live"},
+                {"id": "station-2", "name": "Novin Rock", "stream_url": "https://radio.example/rock"},
+            ]
+            catalog.save_radio_stations(stations)
+            catalog.save_radio_snapshot({"genre": "All", "source": "radio_browser", "genres": ["All"], "stations": stations})
+            self.assertEqual([item["id"] for item in catalog.get_radio_snapshot("All", "", 10)["stations"]], ["station-1", "station-2"])
+            catalog.mark_radio_playing("station-1")
+            catalog.blacklist_recent_radio_station()
+            self.assertEqual([item["id"] for item in catalog.get_radio_snapshot("All", "", 10)["stations"]], ["station-2"])
+            catalog.close()
+
 
 if __name__ == "__main__":
     unittest.main()

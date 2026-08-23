@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
@@ -129,6 +130,13 @@ class Catalog:
                 );
                 CREATE INDEX IF NOT EXISTS radio_stations_favorite
                     ON radio_stations(favorite, updated_at DESC);
+                CREATE TABLE IF NOT EXISTS radio_catalog_snapshots (
+                    cache_key TEXT PRIMARY KEY,
+                    genre TEXT NOT NULL,
+                    search TEXT NOT NULL DEFAULT '',
+                    payload TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
                 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
                 """
             )
@@ -421,7 +429,7 @@ class Catalog:
         return item
 
     def list_radio_stations(self, favorite: Optional[bool] = None, limit: int = 100,
-                            include_blacklisted: bool = False) -> list[dict[str, Any]]:
+                            include_blacklisted: bool = False, genre: str = "", search: str = "") -> list[dict[str, Any]]:
         if not isinstance(limit, int) or not 1 <= limit <= 200:
             raise ValidationError("limit must be between 1 and 200", {"field": "limit"})
         clauses, params = [], []
@@ -430,12 +438,60 @@ class Catalog:
             params.append(int(favorite))
         if not include_blacklisted:
             clauses.append("blacklisted=0")
+        if genre and genre.casefold() != "all":
+            clauses.append("genre LIKE ?")
+            params.append(f"%{genre}%")
+        if search:
+            clauses.append("(name LIKE ? OR genre LIKE ? OR now_playing LIKE ?)")
+            term = f"%{search}%"
+            params.extend((term, term, term))
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         rows = self._connection.execute(
             "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite,blacklisted FROM radio_stations"
             + where + " ORDER BY favorite DESC,updated_at DESC LIMIT ?", (*params, limit)
         ).fetchall()
         return [self._radio_row(row) for row in rows]
+
+    @staticmethod
+    def _radio_snapshot_key(genre: str, search: str) -> str:
+        return f"{genre.strip().casefold()}|{search.strip().casefold()}"
+
+    def save_radio_snapshot(self, result: Mapping[str, Any]) -> None:
+        genre = str(result.get("genre", "All") or "All").strip()[:48]
+        search = str(result.get("search", "") or "").strip()[:100]
+        payload = {
+            "configured": bool(result.get("configured", True)), "source": str(result.get("source", "local")),
+            "genres": list(result.get("genres", [])), "genre": genre, "search": search,
+            "stations": [self._radio_station(station) for station in result.get("stations", [])],
+        }
+        with self._lock, self._connection:
+            self._connection.execute(
+                """INSERT INTO radio_catalog_snapshots(cache_key,genre,search,payload)
+                   VALUES (?,?,?,?) ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload,updated_at=CURRENT_TIMESTAMP""",
+                (self._radio_snapshot_key(genre, search), genre, search, json.dumps(payload, ensure_ascii=False, separators=(",", ":"))),
+            )
+
+    def get_radio_snapshot(self, genre: str, search: str, limit: int) -> Optional[dict[str, Any]]:
+        row = self._connection.execute(
+            "SELECT payload FROM radio_catalog_snapshots WHERE cache_key=?", (self._radio_snapshot_key(genre, search),)
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row["payload"])
+            stations = [self._radio_station(item) for item in payload.get("stations", [])]
+        except (TypeError, ValueError, ValidationError):
+            return None
+        current = {item["id"]: item for item in self.list_radio_stations(limit=200, include_blacklisted=True)}
+        visible = []
+        for station in stations:
+            saved = current.get(station["id"])
+            if saved is None or saved["blacklisted"]:
+                continue
+            visible.append({**station, "favorite": saved["favorite"]})
+            if len(visible) >= limit:
+                break
+        return {**payload, "stations": visible}
 
     def get_radio_station(self, station_id: str, include_blacklisted: bool = False) -> Optional[dict[str, Any]]:
         visible = "" if include_blacklisted else " AND blacklisted=0"

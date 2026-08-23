@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+import threading
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -43,26 +44,59 @@ def _error(status_code: int, code: str, message: str) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message}})
 
 
+def _refresh_catalog(directory: HybridRadioDirectory, catalog: Catalog, genre: str, search: str, key: str, request: Request) -> None:
+    try:
+        result = directory.list_stations(genre=genre, search=search, limit=40, refresh=True)
+        result["search"] = search
+        catalog.save_radio_stations(result["stations"])
+        catalog.save_radio_snapshot(result)
+    except RadioDirectoryError:
+        pass
+    finally:
+        with request.app.state.radio_refresh_lock:
+            request.app.state.radio_refreshing.discard(key)
+
+
+def _refresh_in_background(request: Request, directory: HybridRadioDirectory, catalog: Catalog, genre: str, search: str) -> bool:
+    if not hasattr(request.app.state, "radio_refresh_lock"):
+        request.app.state.radio_refresh_lock = threading.Lock()
+        request.app.state.radio_refreshing = set()
+    key = f"{genre.casefold()}|{search.casefold()}"
+    with request.app.state.radio_refresh_lock:
+        if key in request.app.state.radio_refreshing:
+            return True
+        request.app.state.radio_refreshing.add(key)
+    threading.Thread(target=_refresh_catalog, args=(directory, catalog, genre, search, key, request), daemon=True).start()
+    return True
+
+
 @router.get("/radio", response_model=None)
 def radio_catalog(
+    request: Request,
     genre: str = "All", search: str = "", limit: int = 18, refresh: bool = False,
     directory: HybridRadioDirectory = Depends(get_radio_directory),
     catalog: Catalog = Depends(get_catalog),
 ):
+    requested_limit = max(1, min(int(limit), 40))
+    normalized_genre, normalized_search = genre.strip() or "All", search.strip()
+    snapshot = catalog.get_radio_snapshot(normalized_genre, normalized_search, requested_limit)
+    if snapshot is not None:
+        snapshot["refreshing"] = _refresh_in_background(request, directory, catalog, normalized_genre, normalized_search)
+        return snapshot
+    cached = catalog.list_radio_stations(limit=requested_limit, genre=normalized_genre, search=normalized_search)
+    if not cached and normalized_genre.casefold() != "all":
+        cached = catalog.list_radio_stations(limit=requested_limit, search=normalized_search)
+    if cached:
+        return {"configured": True, "source": "local", "genres": ["All", "Pop", "Rock", "Dance", "Hip Hop", "Jazz", "Classical", "Electronic", "Chillout", "Russian"], "genre": normalized_genre, "search": normalized_search, "stations": cached, "refreshing": _refresh_in_background(request, directory, catalog, normalized_genre, normalized_search)}
     try:
-        requested_limit = max(1, min(int(limit), 40))
-        result = directory.list_stations(genre=genre, search=search, limit=40, refresh=refresh)
+        result = directory.list_stations(genre=normalized_genre, search=normalized_search, limit=40, refresh=refresh)
+        result["search"] = normalized_search
         catalog.save_radio_stations(result["stations"])
-        saved = {station["id"]: station["favorite"] for station in catalog.list_radio_stations(limit=200)}
-        blocked = {station["id"] for station in catalog.list_radio_stations(limit=200, include_blacklisted=True) if station["blacklisted"]}
-        result["stations"] = [station for station in result["stations"] if station["id"] not in blocked][:requested_limit]
-        for station in result["stations"]:
-            station["favorite"] = saved.get(station["id"], False)
+        catalog.save_radio_snapshot(result)
+        result["stations"] = result["stations"][:requested_limit]
+        result["refreshing"] = False
         return result
     except RadioDirectoryError:
-        cached = catalog.list_radio_stations(limit=limit)
-        if cached:
-            return {"configured": True, "source": "local", "genres": ["All", "Pop", "Rock", "Dance", "Hip Hop", "Jazz", "Classical", "Electronic", "Chillout", "Russian"], "genre": genre, "stations": cached}
         return _error(502, "radio_directory_unavailable", "Каталог радио временно недоступен")
 
 

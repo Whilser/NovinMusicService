@@ -395,6 +395,7 @@ async function loadRadioFavorites() {
 }
 
 async function renderRadio(refresh = false) {
+  clearTimeout(renderRadio.refreshTimer);
   const query = new URLSearchParams({ genre: state.radioGenre, limit: "24" });
   if (refresh) query.set("refresh", "true");
   if (state.search) query.set("search", state.search);
@@ -410,6 +411,7 @@ async function renderRadio(refresh = false) {
   ]);
   const sectionTitle = result.genre === "All" ? "Все станции" : `Станции: ${result.genre}`;
   replace(dom.content, intro, genres, result.stations.length ? element("section", { class: "radio-section" }, [element("h2", { text: state.search ? "Станции" : sectionTitle }), element("div", { class: "radio-grid" }, result.stations.map(radioCard))]) : empty("Станции не найдены", "Выберите другой жанр или измените запрос."));
+  if (result.refreshing) renderRadio.refreshTimer = setTimeout(() => { if (state.route === "radio") renderRadio().catch(errorView); }, 2500);
 }
 
 async function renderSongs(favorite = false) {
