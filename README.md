@@ -2,6 +2,25 @@
 
 Личный веб-интерфейс для каталога музыки на SMB-шаре и управления MPD. Сервис рассчитан на один экземпляр в доверенной домашней сети.
 
+## Быстрая установка на `novin`
+
+На Debian/Ubuntu-сервере из checkout выполните один скрипт:
+
+```sh
+cd /home/whilser/NovinMusicService
+./scripts/install-novin-music.sh
+```
+
+Он устанавливает системные зависимости (`cifs-utils`, `mpc`, Docker/Compose при необходимости), создаёт `.env`, пересобирает контейнер, проверяет healthcheck и включает автоматическое восстановление MPD. Скрипт не перезаписывает существующий `.env`.
+
+Чтобы сразу настроить системный доступ MPD к защищённой SMB-шаре, сначала заполните `SMB_USERNAME` и `SMB_PASSWORD` в `.env`, затем выполните:
+
+```sh
+./scripts/install-novin-music.sh --nas-host novincloud.local --nas-share music
+```
+
+Опция `--apparmor-unconfined` допустима только после подтверждённого AppArmor-deny для `mount.cifs`.
+
 ## Запуск через Docker Compose
 
 Требуется Linux-хост с Docker Engine, Docker Compose v2 и поддержкой CIFS в ядре. На сервере `novin` выполните:
@@ -31,9 +50,24 @@ docker compose -f docker-compose.yml -f docker-compose.apparmor-unconfined.yml u
 
 ## MPD на сервере novin
 
-В настройках MPD используйте host `host.docker.internal` и порт MPD (обычно `6600`). Compose отображает это имя на gateway хоста. MPD должен слушать адрес, доступный с Docker bridge, и разрешать соединение в локальном firewall. Пароль MPD, если он включён, задавайте только переменной `MPD_PASSWORD` в `.env`.
+В настройках MPD укажите адрес, достижимый из контейнера: обычно LAN-имя сервера (`novin.local`) или его стабильный IP и порт `6600`. `host.docker.internal` подходит только если доступ через Docker host-gateway подтверждён. MPD должен слушать этот адрес и разрешать соединение в локальном firewall. Пароль MPD, если он включён, задавайте только переменной `MPD_PASSWORD` в `.env`.
 
 Novin отправляет MPD URI относительно его `music_directory`. MPD должен видеть те же файлы, что контейнер видит в `/music`. Если корень SMB-шары совпадает с `music_directory`, оставьте URI-префикс пустым. Если эта коллекция находится у MPD в подпапке, например `music_directory/nas`, задайте префикс `nas` — абсолютный путь указывать нельзя.
+
+### Автоматическое восстановление MPD
+
+Интернет-радио или обрыв сетевого потока могут оставить управляющий сокет MPD без ответа. Скрипт ниже отключает конфликтующую socket-активацию MPD, включает systemd timer и раз в минуту проверяет протокольный ответ MPD. Если он не отвечает, MPD автоматически перезапускается:
+
+```sh
+sudo /home/whilser/NovinMusicService/scripts/configure-mpd-recovery.sh
+systemctl status novin-mpd-watchdog.timer
+```
+
+## Радио
+
+Раздел «Радио» показывает мгновенный снимок каталога из SQLite и обновляет поставщик в фоне. При наличии `SHOUTCAST_API_KEY` используется партнёрский каталог Shoutcast; без ключа — открытый Radio Browser. Избранные станции хранятся локально и не исчезают при смене каталога.
+
+Если MPD перестаёт отвечать вскоре после запуска станции, сервис добавляет её в локальный чёрный список. Такая станция больше не отображается; свежий фоновой каталог подставляет другие кандидаты. Чёрный список также остаётся в SQLite.
 
 ## Резервная копия
 
@@ -58,7 +92,14 @@ curl http://127.0.0.1:8000/api/health
 
 Если SMB не подключается, проверьте имя NAS и шары, доступность TCP 445 с хоста, наличие поддержки CIFS в ядре Linux и пару `SMB_USERNAME`/`SMB_PASSWORD`. Сообщение `operation not permitted` обычно означает, что у контейнера убран `SYS_ADMIN` или на хосте принудительно блокируется mount профилем безопасности. Не включайте `privileged`; верните настройки Compose из репозитория.
 
-Если MPD отображается offline, проверьте его bind-адрес, порт/firewall, `MPD_PASSWORD` и доступность `host.docker.internal` из контейнера. Если трек есть в каталоге, но MPD не воспроизводит его, сверяйте именно относительный URI и URI-префикс с `music_directory` MPD.
+Если MPD отображается offline, проверьте его bind-адрес, порт/firewall, `MPD_PASSWORD` и доступность выбранного MPD-адреса из контейнера. Если трек есть в каталоге, но MPD не воспроизводит его, сверяйте именно относительный URI и URI-префикс с `music_directory` MPD.
+
+Для диагностики автоматического восстановления:
+
+```sh
+systemctl status novin-mpd-watchdog.timer
+journalctl -u novin-mpd-watchdog.service -n 50 --no-pager
+```
 
 На Linux-сервере `novin` полный config/build/up/health прогон выполняется одной командой:
 
