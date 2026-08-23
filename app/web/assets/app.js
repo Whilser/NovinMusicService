@@ -653,6 +653,13 @@ async function updatePlayer(player) {
   replace(dom.playerCover); const track = await resolvePlayerTrack(song).catch(() => null); const url = track ? coverUrl(track) : ""; if (url) dom.playerCover.append(element("img", { src: url, alt: "", attrs: { style: "width:100%;height:100%;object-fit:cover;border-radius:inherit" } })); else dom.playerCover.append(icon("music", 20));
   updateFullscreenPlayer(player, track);
 }
-async function pollPlayer() { try { await updatePlayer(await request("/player/status")); } catch { await updatePlayer({ online: false }); } }
+let playerPollInFlight = false;
+async function pollPlayer() {
+  if (playerPollInFlight) return;
+  playerPollInFlight = true;
+  try { await updatePlayer(await request("/player/status")); }
+  catch { await updatePlayer({ online: false }); }
+  finally { playerPollInFlight = false; }
+}
 
-await render(); await pollPlayer(); setInterval(pollPlayer, 2000);
+await render(); await pollPlayer(); setInterval(pollPlayer, 5000);
