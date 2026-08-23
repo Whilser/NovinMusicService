@@ -216,6 +216,20 @@ class RadioStationPersistenceTests(unittest.TestCase):
             self.assertEqual(reopened.get_radio_station("station-1")["stream_url"], "https://radio.example/live")
             reopened.close()
 
+    def test_recent_radio_station_is_hidden_after_mpd_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Catalog(Path(directory) / "catalog.sqlite3")
+            station = {"id": "station-1", "name": "Novin FM", "stream_url": "https://radio.example/live"}
+            catalog.save_radio_stations([station])
+            catalog.mark_radio_playing("station-1")
+            blocked = catalog.blacklist_recent_radio_station()
+            self.assertEqual(blocked["id"], "station-1")
+            self.assertTrue(blocked["blacklisted"])
+            self.assertEqual(catalog.list_radio_stations(), [])
+            self.assertIsNone(catalog.get_radio_station("station-1"))
+            self.assertTrue(catalog.get_radio_station("station-1", include_blacklisted=True)["blacklisted"])
+            catalog.close()
+
 
 if __name__ == "__main__":
     unittest.main()

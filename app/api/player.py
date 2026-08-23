@@ -84,12 +84,13 @@ def _settings_error(error: MpdConfigurationError) -> JSONResponse:
 
 
 @router.get("/player/status")
-def player_status(client: MpdClient = Depends(get_mpd_client)) -> dict[str, Any]:
+def player_status(catalog: Catalog = Depends(get_catalog), client: MpdClient = Depends(get_mpd_client)) -> dict[str, Any]:
     try:
         return client.status()
     except MpdConfigurationError as error:
         return _settings_error(error)
     except MpdError:
+        catalog.blacklist_recent_radio_station()
         return _offline()
 
 

@@ -50,9 +50,12 @@ def radio_catalog(
     catalog: Catalog = Depends(get_catalog),
 ):
     try:
-        result = directory.list_stations(genre=genre, search=search, limit=limit, refresh=refresh)
+        requested_limit = max(1, min(int(limit), 40))
+        result = directory.list_stations(genre=genre, search=search, limit=40, refresh=refresh)
         catalog.save_radio_stations(result["stations"])
         saved = {station["id"]: station["favorite"] for station in catalog.list_radio_stations(limit=200)}
+        blocked = {station["id"] for station in catalog.list_radio_stations(limit=200, include_blacklisted=True) if station["blacklisted"]}
+        result["stations"] = [station for station in result["stations"] if station["id"] not in blocked][:requested_limit]
         for station in result["stations"]:
             station["favorite"] = saved.get(station["id"], False)
         return result
@@ -82,11 +85,16 @@ def play_radio(
     catalog: Catalog = Depends(get_catalog),
     client=Depends(get_mpd_client),
 ):
-    station = directory.station(body.station_id) or catalog.get_radio_station(body.station_id)
+    stored = catalog.get_radio_station(body.station_id, include_blacklisted=True)
+    if stored is not None and stored["blacklisted"]:
+        return _error(410, "radio_station_blacklisted", "Станция исключена из-за проблем с воспроизведением")
+    station = stored or directory.station(body.station_id)
     if station is None:
         return _error(404, "radio_station_not_found", "Станция не найдена: обновите каталог и попробуйте снова")
     try:
-        return client.play_stream(station["stream_url"])
+        result = client.play_stream(station["stream_url"])
+        catalog.mark_radio_playing(body.station_id)
+        return result
     except MpdConfigurationError as error:
         return _error(422, "invalid_mpd_settings", str(error))
     except MpdCommandError as error:

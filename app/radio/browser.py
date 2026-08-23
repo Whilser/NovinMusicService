@@ -15,7 +15,7 @@ from .shoutcast import DEFAULT_GENRES, RadioDirectoryError
 
 _CACHE_TTL_SECONDS = 15 * 60
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-_UPSTREAM_LIMIT = 8
+_UPSTREAM_LIMIT = 40
 ALL_GENRE = "All"
 RUSSIAN_GENRE = "Russian"
 RADIO_GENRES = (ALL_GENRE, *DEFAULT_GENRES)
@@ -58,11 +58,11 @@ class RadioBrowserDirectory:
                     parameters["name"] = normalized_search
                     stations = self._stations(self._payload("/json/stations/search", parameters), bounded_limit)
                 elif normalized_genre == ALL_GENRE:
-                    stations = self._stations(self._payload("/json/stations/topclick/8", {"hidebroken": "true"}), bounded_limit)
+                    stations = self._stations(self._payload(f"/json/stations/topclick/{bounded_limit}", {"hidebroken": "true"}), bounded_limit)
                     if len(stations) < bounded_limit:
-                        stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/topvote/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
+                        stations = self._merge_stations(stations, self._stations(self._payload(f"/json/stations/topvote/{bounded_limit}", {"hidebroken": "true"}), bounded_limit), limit=bounded_limit)
                     if len(stations) < bounded_limit:
-                        stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/lastclick/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
+                        stations = self._merge_stations(stations, self._stations(self._payload(f"/json/stations/lastclick/{bounded_limit}", {"hidebroken": "true"}), bounded_limit), limit=bounded_limit)
                 elif normalized_genre == RUSSIAN_GENRE:
                     stations = self._stations(self._payload("/json/stations/bycountrycodeexact/RU", parameters), bounded_limit)
                 else:
@@ -75,10 +75,10 @@ class RadioBrowserDirectory:
                     # A small popular-stations supplement avoids an empty
                     # screen when a mirror has a shallow genre index, while
                     # retaining only stations with the selected tag.
-                    for popular_path in ("/json/stations/topclick/8", "/json/stations/topvote/8", "/json/stations/lastclick/8"):
+                    for popular_path in (f"/json/stations/topclick/{bounded_limit}", f"/json/stations/topvote/{bounded_limit}", f"/json/stations/lastclick/{bounded_limit}"):
                         if len(stations) >= bounded_limit:
                             break
-                        popular = self._filter_genre(self._stations(self._payload(popular_path, {"hidebroken": "true"}), 8), normalized_genre)
+                        popular = self._filter_genre(self._stations(self._payload(popular_path, {"hidebroken": "true"}), bounded_limit), normalized_genre)
                         stations = self._merge_stations(stations, popular, limit=bounded_limit)
             except (OSError, ValueError, UnicodeError, subprocess.SubprocessError, RadioDirectoryError) as error:
                 raise RadioDirectoryError("Не удалось загрузить открытый каталог радио") from error

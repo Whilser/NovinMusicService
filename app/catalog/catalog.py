@@ -121,6 +121,9 @@ class Catalog:
                     bitrate INTEGER,
                     stream_url TEXT NOT NULL,
                     favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1)),
+                    blacklisted INTEGER NOT NULL DEFAULT 0 CHECK (blacklisted IN (0, 1)),
+                    last_played_at TEXT,
+                    blacklisted_at TEXT,
                     saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
@@ -129,6 +132,13 @@ class Catalog:
                 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
                 """
             )
+            columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(radio_stations)")}
+            if "blacklisted" not in columns:
+                self._connection.execute("ALTER TABLE radio_stations ADD COLUMN blacklisted INTEGER NOT NULL DEFAULT 0")
+            if "last_played_at" not in columns:
+                self._connection.execute("ALTER TABLE radio_stations ADD COLUMN last_played_at TEXT")
+            if "blacklisted_at" not in columns:
+                self._connection.execute("ALTER TABLE radio_stations ADD COLUMN blacklisted_at TEXT")
 
     @staticmethod
     def _page(page: int, page_size: int) -> tuple[int, int]:
@@ -403,21 +413,37 @@ class Catalog:
                 )
         return saved
 
-    def list_radio_stations(self, favorite: Optional[bool] = None, limit: int = 100) -> list[dict[str, Any]]:
+    @staticmethod
+    def _radio_row(row: sqlite3.Row) -> dict[str, Any]:
+        item = dict(row)
+        item["favorite"] = bool(item["favorite"])
+        item["blacklisted"] = bool(item["blacklisted"])
+        return item
+
+    def list_radio_stations(self, favorite: Optional[bool] = None, limit: int = 100,
+                            include_blacklisted: bool = False) -> list[dict[str, Any]]:
         if not isinstance(limit, int) or not 1 <= limit <= 200:
             raise ValidationError("limit must be between 1 and 200", {"field": "limit"})
-        where, params = ("", ()) if favorite is None else (" WHERE favorite=?", (int(favorite),))
+        clauses, params = [], []
+        if favorite is not None:
+            clauses.append("favorite=?")
+            params.append(int(favorite))
+        if not include_blacklisted:
+            clauses.append("blacklisted=0")
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
         rows = self._connection.execute(
-            "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite FROM radio_stations"
+            "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite,blacklisted FROM radio_stations"
             + where + " ORDER BY favorite DESC,updated_at DESC LIMIT ?", (*params, limit)
         ).fetchall()
-        return [{**dict(row), "favorite": bool(row["favorite"])} for row in rows]
+        return [self._radio_row(row) for row in rows]
 
-    def get_radio_station(self, station_id: str) -> Optional[dict[str, Any]]:
+    def get_radio_station(self, station_id: str, include_blacklisted: bool = False) -> Optional[dict[str, Any]]:
+        visible = "" if include_blacklisted else " AND blacklisted=0"
         row = self._connection.execute(
-            "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite FROM radio_stations WHERE station_id=?", (station_id,)
+            "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite,blacklisted FROM radio_stations WHERE station_id=?" + visible,
+            (station_id,),
         ).fetchone()
-        return ({**dict(row), "favorite": bool(row["favorite"])} if row else None)
+        return self._radio_row(row) if row else None
 
     def set_radio_favorite(self, station: Mapping[str, Any], favorite: bool) -> dict[str, Any]:
         if not isinstance(favorite, bool):
@@ -428,6 +454,33 @@ class Catalog:
         result = self.get_radio_station(saved["id"])
         assert result is not None
         return result
+
+    def mark_radio_playing(self, station_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE radio_stations SET last_played_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE station_id=? AND blacklisted=0",
+                (station_id,),
+            )
+
+    def blacklist_recent_radio_station(self, grace_seconds: int = 90) -> Optional[dict[str, Any]]:
+        if not isinstance(grace_seconds, int) or not 1 <= grace_seconds <= 600:
+            raise ValidationError("radio blacklist grace must be between 1 and 600 seconds")
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                """SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite,blacklisted
+                   FROM radio_stations WHERE blacklisted=0 AND last_played_at IS NOT NULL
+                   AND last_played_at >= datetime('now', ?) ORDER BY last_played_at DESC LIMIT 1""",
+                (f"-{grace_seconds} seconds",),
+            ).fetchone()
+            if row is None:
+                return None
+            self._connection.execute(
+                "UPDATE radio_stations SET blacklisted=1,blacklisted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE station_id=?",
+                (row["id"],),
+            )
+        item = self._radio_row(row)
+        item["blacklisted"] = True
+        return item
 
     def create_playlist(self, name: str) -> dict[str, Any]:
         name = name.strip()
