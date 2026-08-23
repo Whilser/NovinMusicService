@@ -476,7 +476,7 @@ async function renderFavorites() {
   const [stations, albums] = await Promise.all([loadRadioFavorites(), request("/albums?favorite=true&page_size=50")]);
   replace(dom.content,
     stations.length ? section("Радиостанции", element("div", { class: "radio-grid" }, stations.map(radioCard))) : null,
-    albums.items.length ? section("Альбомы", element("div", { class: "grid catalog-grid" }, albums.items.map((item) => albumCard(item, "album")))) : null,
+    albums.items.length ? section("Альбомы", element("div", { class: "grid favorite-album-grid" }, albums.items.map((item) => albumCard(item, "album")))) : null,
     result.items.length ? section("Песни", trackList(result.items)) : null,
     !stations.length && !albums.items.length && !result.items.length ? empty("Избранное пока пусто", "Добавляйте любимые песни, альбомы сердцем или сохраняйте радиостанции.") : null
   );
