@@ -34,7 +34,7 @@ class ScannerTests(unittest.TestCase):
 
             self.assertEqual(snapshot.tracks[0]["album"], "Disc One")
 
-    def test_embedded_cover_wins_over_named_folder_cover(self):
+    def test_named_folder_cover_wins_over_embedded_artwork(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             audio = root / "album" / "song.mp3"
@@ -47,8 +47,38 @@ class ScannerTests(unittest.TestCase):
             ).scan(root)
 
             cover_id = snapshot.tracks[0]["cover_url"].rsplit("/", 1)[1]
-            self.assertEqual(snapshot.covers[cover_id].data, b"embedded-cover")
-            self.assertEqual(snapshot.covers[cover_id].mime_type, "image/png")
+            self.assertEqual(snapshot.covers[cover_id].data, b"folder-cover")
+            self.assertEqual(snapshot.covers[cover_id].mime_type, "image/jpeg")
+
+    def test_artist_image_from_parent_directory_is_published_separately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artist = root / "Тима Белорусских"
+            album = artist / "2020 - Моя кассета"
+            album.mkdir(parents=True)
+            (album / "01 Песня.mp3").write_bytes(b"audio")
+            (album / "cover.jpg").write_bytes(b"album-cover")
+            (artist / "Artist.JPG").write_bytes(b"artist-picture")
+
+            snapshot = Scanner(metadata_reader=lambda path: {"artist": "Тима Белорусских"}).scan(root)
+
+            track = snapshot.tracks[0]
+            album_id = track["cover_url"].rsplit("/", 1)[1]
+            artist_id = track["artist_cover_url"].rsplit("/", 1)[1]
+            self.assertEqual(snapshot.covers[album_id].data, b"album-cover")
+            self.assertEqual(snapshot.covers[artist_id].data, b"artist-picture")
+
+    def test_artist_image_at_collection_root_is_not_applied_to_every_artist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            album = root / "Artist" / "Album"
+            album.mkdir(parents=True)
+            (album / "song.mp3").write_bytes(b"audio")
+            (root / "Artist.jpg").write_bytes(b"generic-picture")
+
+            snapshot = Scanner(metadata_reader=lambda path: {"artist": "Artist"}).scan(root)
+
+            self.assertNotIn("artist_cover_url", snapshot.tracks[0])
 
     def test_unreadable_file_is_counted_without_aborting_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:

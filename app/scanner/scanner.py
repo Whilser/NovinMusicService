@@ -9,6 +9,7 @@ from typing import Callable, Dict, Mapping, Optional, Tuple
 
 SUPPORTED_EXTENSIONS = {".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff"}
 IMAGE_NAMES = ("cover", "folder", "front")
+ARTIST_IMAGE_NAMES = ("artist",)
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 MAX_COVER_BYTES = 5 * 1024 * 1024
 
@@ -37,6 +38,8 @@ class Scanner:
             raise FileNotFoundError(f"music root is unavailable: {root}")
         tracks = []
         covers: Dict[str, CoverAsset] = {}
+        album_covers: Dict[Path, Optional[CoverAsset]] = {}
+        artist_covers: Dict[Path, Optional[CoverAsset]] = {}
         counters = {"discovered": 0, "indexed": 0, "unreadable": 0, "unsupported": 0}
         if progress:
             progress(dict(counters))
@@ -56,7 +59,14 @@ class Scanner:
                     progress(dict(counters))
                 continue
             embedded = metadata.pop("embedded_cover", None)
-            cover = _make_cover(embedded) if embedded else _directory_cover(path.parent)
+            # An explicit cover file is the curator's album artwork and therefore
+            # takes precedence over potentially inconsistent embedded artwork.
+            if path.parent not in album_covers:
+                album_covers[path.parent] = _directory_cover(path.parent)
+            cover = album_covers[path.parent] or _make_cover(embedded)
+            if path.parent not in artist_covers:
+                artist_covers[path.parent] = _artist_cover(path.parent, root)
+            artist_cover = artist_covers[path.parent]
             album = _text(metadata.get("album"), "")
             if not album:
                 relative_parent = path.relative_to(root).parent
@@ -80,6 +90,9 @@ class Scanner:
                 row["cover_url"] = f"/api/covers/{cover.etag}"
             else:
                 row["cover_url"] = "/api/covers/placeholder"
+            if artist_cover:
+                covers[artist_cover.etag] = artist_cover
+                row["artist_cover_url"] = f"/api/covers/{artist_cover.etag}"
             tracks.append(row)
             counters["indexed"] += 1
             if progress:
@@ -122,8 +135,27 @@ def _make_cover(raw) -> Optional[CoverAsset]:
 
 
 def _directory_cover(directory: Path) -> Optional[CoverAsset]:
+    return _named_directory_image(directory, IMAGE_NAMES)
+
+
+def _artist_cover(directory: Path, root: Path) -> Optional[CoverAsset]:
+    """Find Artist.* in the album directory or one of its artist parents.
+
+    The scanner deliberately stops before the collection root: a generic
+    Artist.jpg placed at the root must not become artwork for every artist.
+    """
+    current = directory
+    while current != root and root in current.parents:
+        image = _named_directory_image(current, ARTIST_IMAGE_NAMES)
+        if image:
+            return image
+        current = current.parent
+    return None
+
+
+def _named_directory_image(directory: Path, stems: tuple[str, ...]) -> Optional[CoverAsset]:
     entries = {entry.name.lower(): entry for entry in directory.iterdir() if entry.is_file() and not entry.is_symlink()}
-    for stem in IMAGE_NAMES:
+    for stem in stems:
         for extension in IMAGE_EXTENSIONS:
             path = entries.get(stem + extension)
             if path and path.stat().st_size <= MAX_COVER_BYTES:

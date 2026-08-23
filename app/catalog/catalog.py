@@ -67,6 +67,7 @@ class Catalog:
                     size INTEGER NOT NULL DEFAULT 0,
                     mtime REAL NOT NULL DEFAULT 0,
                     cover_url TEXT,
+                    artist_cover_url TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
@@ -147,6 +148,9 @@ class Catalog:
                 self._connection.execute("ALTER TABLE radio_stations ADD COLUMN last_played_at TEXT")
             if "blacklisted_at" not in columns:
                 self._connection.execute("ALTER TABLE radio_stations ADD COLUMN blacklisted_at TEXT")
+            track_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(tracks)")}
+            if "artist_cover_url" not in track_columns:
+                self._connection.execute("ALTER TABLE tracks ADD COLUMN artist_cover_url TEXT")
 
     @staticmethod
     def _page(page: int, page_size: int) -> tuple[int, int]:
@@ -178,19 +182,20 @@ class Catalog:
                     path, title, str(item.get("artist") or ""), str(item.get("album") or ""),
                     str(item.get("album_artist") or ""), item.get("track_no"), item.get("disc_no"),
                     item.get("year"), str(item.get("genre") or ""), item.get("duration"),
-                    int(item.get("size") or 0), float(item.get("mtime") or 0), item.get("cover_url"),
+                    int(item.get("size") or 0), float(item.get("mtime") or 0), item.get("cover_url"), item.get("artist_cover_url"),
                 )
                 self._connection.execute(
                     """INSERT INTO tracks(
                            path,title,artist,album,album_artist,track_no,disc_no,year,genre,
-                           duration,size,mtime,cover_url
-                       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           duration,size,mtime,cover_url,artist_cover_url
+                       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                        ON CONFLICT(path) DO UPDATE SET
                            title=excluded.title,artist=excluded.artist,album=excluded.album,
                            album_artist=excluded.album_artist,track_no=excluded.track_no,
                            disc_no=excluded.disc_no,year=excluded.year,genre=excluded.genre,
                            duration=excluded.duration,size=excluded.size,mtime=excluded.mtime,
-                           cover_url=excluded.cover_url,updated_at=CURRENT_TIMESTAMP""",
+                           cover_url=excluded.cover_url,artist_cover_url=excluded.artist_cover_url,
+                           updated_at=CURRENT_TIMESTAMP""",
                     values,
                 )
             if paths:
@@ -206,6 +211,23 @@ class Catalog:
                 ), paths
             ).fetchall() if paths else []
             existing = {row["path"]: row["id"] for row in rows}
+            # Local Artist.* files are authoritative for the current scan. Remove
+            # only previous local mappings; externally resolved images stay cached.
+            self._connection.execute("DELETE FROM artist_images WHERE source='local'")
+            local_artist_images = self._connection.execute(
+                """SELECT artist, MAX(artist_cover_url) AS url FROM tracks
+                   WHERE artist_cover_url IS NOT NULL AND artist_cover_url<>''
+                   GROUP BY artist"""
+            ).fetchall()
+            for image in local_artist_images:
+                cover_id = str(image["url"]).rsplit("/", 1)[-1]
+                if len(cover_id) == 64 and cover_id.isalnum():
+                    self._connection.execute(
+                        """INSERT INTO artist_images(artist,cover_id,status,source) VALUES (?,?,?,?)
+                           ON CONFLICT(artist) DO UPDATE SET cover_id=excluded.cover_id,status=excluded.status,
+                           source=excluded.source,updated_at=CURRENT_TIMESTAMP""",
+                        (image["artist"], cover_id, "ready", "local"),
+                    )
         return {"indexed": len(snapshot), "removed": removed, "track_ids": [existing[p] for p in paths]}
 
     def get_track(self, track_id: int) -> dict[str, Any]:

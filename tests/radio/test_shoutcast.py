@@ -58,4 +58,4 @@ class ShoutcastDirectoryTests(unittest.TestCase):
             catalog.list_stations("Rock")
             catalog.list_stations("Rock", refresh=True)
             self.assertEqual(len(calls), 8)
-            self.assertTrue(all(any(path in url for path in ("/bytag/Rock?", "/topclick/8?", "/topvote/8?", "/lastclick/8?")) for url in calls))
+            self.assertTrue(all(any(path in url for path in ("/bytag/Rock?", "/bytag/Rock/18?", "/topclick/18?", "/topvote/18?", "/lastclick/18?")) for url in calls))

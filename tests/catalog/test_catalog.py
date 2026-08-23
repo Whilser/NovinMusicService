@@ -109,6 +109,20 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertNotIn("album_cover_urls", artist)
             catalog.save_artist_image("Alpha", None, "missing", "wikimedia")
             self.assertEqual(catalog.list_artists()["items"][0]["artist_image_status"], "missing")
+
+    def test_scan_registers_local_artist_picture_as_preferred_artist_artwork(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Catalog(Path(directory) / "catalog.sqlite3")
+            artist_cover_id = "a" * 64
+            catalog.reconcile_tracks([{
+                "path": "Artist/Album/song.flac", "title": "Song", "artist": "Artist", "album": "Album",
+                "artist_cover_url": f"/api/covers/{artist_cover_id}",
+            }])
+
+            artist = catalog.list_artists()["items"][0]
+            self.assertEqual(artist["artist_cover_id"], artist_cover_id)
+            self.assertEqual(artist["artist_image_status"], "ready")
+            self.assertEqual(catalog.artist_image("Artist")["source"], "local")
             catalog.close()
 
 
