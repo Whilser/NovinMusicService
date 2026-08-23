@@ -333,12 +333,12 @@ body.fullscreen-open { overflow: hidden; }
   max-width: calc(100vw - 32px);
   margin: 0 !important;
   padding: .86rem 1.05rem;
-  border: 1px solid #f4b9c3;
-  border-radius: 14px;
-  background: rgba(255,247,248,.96);
-  color: #a80d27;
-  box-shadow: 0 16px 42px #8d122933;
-  backdrop-filter: blur(18px);
+  border: 1px solid rgba(0, 0, 0, .09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .82);
+  color: #1d1d1f;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .16), 0 2px 8px rgba(0, 0, 0, .08);
+  backdrop-filter: blur(24px) saturate(1.25);
   opacity: 0;
   transform: translateY(-10px) translateX(8px);
   pointer-events: none;
