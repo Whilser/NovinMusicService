@@ -96,10 +96,28 @@ class MpdClient:
             else:
                 values[normalized] = converted
 
+    def _connect(self) -> socket.socket:
+        """Connect to MPD while preferring routable IPv4 over mDNS link-local IPv6."""
+        try:
+            addresses = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except OSError as error:
+            raise MpdConnectionError(str(error)) from error
+        addresses.sort(key=lambda item: 0 if item[0] == socket.AF_INET else 1)
+        last_error: OSError | None = None
+        for family, socktype, protocol, _, sockaddr in addresses:
+            connection = socket.socket(family, socktype, protocol)
+            connection.settimeout(self.timeout)
+            try:
+                connection.connect(sockaddr)
+                return connection
+            except OSError as error:
+                last_error = error
+                connection.close()
+        raise MpdConnectionError(str(last_error or "MPD host has no usable address"))
+
     def _run_once(self, commands: Iterable[str]) -> list[dict[str, Any]]:
         try:
-            connection = socket.create_connection((self.host, self.port), self.timeout)
-            connection.settimeout(self.timeout)
+            connection = self._connect()
             with connection, connection.makefile("rwb") as stream:
                 greeting = stream.readline().decode("utf-8", "strict").rstrip("\r\n")
                 if not greeting.startswith("OK MPD "):
