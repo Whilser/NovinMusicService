@@ -12,6 +12,10 @@ const mobileRoutes = routes;
 const initialLocation = locationFromHash();
 const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "All" };
 const fullscreenPaletteCache = new Map();
+const legacyRadioFavorites = (() => {
+  try { const saved = JSON.parse(localStorage.getItem("novin-radio-favorites") || "{}"); return saved && !Array.isArray(saved) ? new Map(Object.entries(saved)) : new Map(); }
+  catch { return new Map(); }
+})();
 const radioFavoriteStations = new Map();
 const radioFavorites = new Set(radioFavoriteStations.keys());
 const radioStations = new Map();
@@ -337,6 +341,10 @@ function radioCard(station, index) {
 }
 
 async function loadRadioFavorites() {
+  if (legacyRadioFavorites.size) {
+    await Promise.all([...legacyRadioFavorites.values()].filter((station) => station?.id && station?.name && station?.stream_url).map((station) => request(`/radio/stations/${encodeURIComponent(station.id)}/favorite`, { method: "PUT", body: JSON.stringify({ station, favorite: true }) }).catch(() => null)));
+    legacyRadioFavorites.clear(); localStorage.removeItem("novin-radio-favorites");
+  }
   const saved = await request("/radio/favorites").catch(() => []);
   radioFavorites.clear(); radioFavoriteStations.clear();
   saved.forEach((station) => { radioFavorites.add(station.id); radioFavoriteStations.set(station.id, station); radioStations.set(station.id, station); });
