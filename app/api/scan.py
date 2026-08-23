@@ -74,10 +74,10 @@ class ScanJobs:
                 share_status = manager.apply(settings)
                 if share_status.get("state") != "connected":
                     raise ShareError("SMB mount failed")
-            snapshot = scanner.scan(root, progress=self._progress)
+            snapshot = scanner.scan(root, progress=self._progress, cached_tracks=catalog.scan_cache())
             self._persist_covers(snapshot.covers)
             reconciliation = catalog.reconcile_tracks(snapshot.tracks)
-            if mpd_update is not None:
+            if mpd_update is not None and (snapshot.changed or reconciliation["removed"]):
                 mpd_update()
         except Exception as error:
             with self._lock:

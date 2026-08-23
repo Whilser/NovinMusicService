@@ -47,7 +47,7 @@ class ScanApiTests(unittest.TestCase):
             release = threading.Event()
 
             class BlockingScanner:
-                def scan(self, root, progress=None):
+                def scan(self, root, progress=None, cached_tracks=None):
                     progress({"discovered": 1, "indexed": 0, "unreadable": 0, "unsupported": 0})
                     entered.set()
                     release.wait(2)
@@ -55,6 +55,7 @@ class ScanApiTests(unittest.TestCase):
                         ({"path": "Artist/song.flac", "title": "Scanned", "cover_url": "/api/covers/placeholder"},),
                         {"discovered": 1, "indexed": 1, "unreadable": 0, "unsupported": 0},
                         {},
+                        1,
                     )
 
             class MpdUpdater:
@@ -95,7 +96,7 @@ class ScanApiTests(unittest.TestCase):
     def test_failed_scan_preserves_previous_catalog(self):
         with tempfile.TemporaryDirectory() as directory:
             class FailingScanner:
-                def scan(self, root, progress=None):
+                def scan(self, root, progress=None, cached_tracks=None):
                     raise OSError("share unavailable")
 
             application = create_app(data_dir=Path(directory) / "data", music_root=directory)
@@ -121,7 +122,7 @@ class ScanApiTests(unittest.TestCase):
             oversized_id = "b" * 64
 
             class CoveredScanner:
-                def scan(self, root, progress=None):
+                def scan(self, root, progress=None, cached_tracks=None):
                     return ScanSnapshot(
                         ({"path": "song.flac", "title": "Song", "cover_url": f"/api/covers/{cover_id}"},),
                         {"discovered": 1, "indexed": 1, "unreadable": 0, "unsupported": 0},
@@ -184,7 +185,7 @@ class ScanApiTests(unittest.TestCase):
                 manager.applied.clear()
 
                 class EmptyScanner:
-                    def scan(self, root, progress=None):
+                    def scan(self, root, progress=None, cached_tracks=None):
                         return ScanSnapshot(
                             (),
                             {"discovered": 0, "indexed": 0, "unreadable": 0, "unsupported": 0},

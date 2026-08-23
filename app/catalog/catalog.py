@@ -230,6 +230,18 @@ class Catalog:
                     )
         return {"indexed": len(snapshot), "removed": removed, "track_ids": [existing[p] for p in paths]}
 
+    def scan_cache(self) -> dict[str, dict[str, Any]]:
+        """Return the immutable fields needed to skip unchanged audio files.
+
+        The scanner still walks the whole tree, so removals remain visible to
+        reconciliation.  Only expensive tag and embedded-artwork extraction is
+        avoided for files whose size and modification time have not changed.
+        """
+        fields = "path,title,artist,album,album_artist,track_no,disc_no,year,genre,duration,size,mtime,cover_url,artist_cover_url"
+        with self._lock:
+            rows = self._connection.execute(f"SELECT {fields} FROM tracks").fetchall()
+        return {str(row["path"]): dict(row) for row in rows}
+
     def get_track(self, track_id: int) -> dict[str, Any]:
         row = self._connection.execute(
             """SELECT t.*, p.rating, COALESCE(p.favorite,0) AS favorite

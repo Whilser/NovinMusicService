@@ -26,13 +26,19 @@ class ScanSnapshot:
     tracks: Tuple[dict, ...]
     counters: dict
     covers: Mapping[str, CoverAsset]
+    changed: int = 0
 
 
 class Scanner:
     def __init__(self, metadata_reader: Optional[Callable[[Path], Mapping]] = None):
         self._metadata_reader = metadata_reader or _read_mutagen
 
-    def scan(self, root: Path, progress: Optional[Callable[[dict], None]] = None) -> ScanSnapshot:
+    def scan(
+        self,
+        root: Path,
+        progress: Optional[Callable[[dict], None]] = None,
+        cached_tracks: Optional[Mapping[str, Mapping]] = None,
+    ) -> ScanSnapshot:
         root = Path(root)
         if not root.is_dir():
             raise FileNotFoundError(f"music root is unavailable: {root}")
@@ -40,6 +46,8 @@ class Scanner:
         covers: Dict[str, CoverAsset] = {}
         album_covers: Dict[Path, Optional[CoverAsset]] = {}
         artist_covers: Dict[Path, Optional[CoverAsset]] = {}
+        cached_tracks = cached_tracks or {}
+        changed = 0
         counters = {"discovered": 0, "indexed": 0, "unreadable": 0, "unsupported": 0}
         if progress:
             progress(dict(counters))
@@ -51,13 +59,31 @@ class Scanner:
                 continue
             counters["discovered"] += 1
             try:
-                metadata = dict(self._metadata_reader(path))
                 stat = path.stat()
             except Exception:
                 counters["unreadable"] += 1
                 if progress:
                     progress(dict(counters))
                 continue
+            relative_path = path.relative_to(root).as_posix()
+            cached = cached_tracks.get(relative_path)
+            if cached and int(cached.get("size") or 0) == stat.st_size and int(float(cached.get("mtime") or 0)) == int(stat.st_mtime):
+                row = dict(cached)
+                row["size"] = stat.st_size
+                row["mtime"] = int(stat.st_mtime)
+                tracks.append(row)
+                counters["indexed"] += 1
+                if progress:
+                    progress(dict(counters))
+                continue
+            try:
+                metadata = dict(self._metadata_reader(path))
+            except Exception:
+                counters["unreadable"] += 1
+                if progress:
+                    progress(dict(counters))
+                continue
+            changed += 1
             embedded = metadata.pop("embedded_cover", None)
             # An explicit cover file is the curator's album artwork and therefore
             # takes precedence over potentially inconsistent embedded artwork.
@@ -72,7 +98,7 @@ class Scanner:
                 relative_parent = path.relative_to(root).parent
                 album = relative_parent.name if relative_parent != Path(".") else "Неизвестный альбом"
             row = {
-                "path": path.relative_to(root).as_posix(),
+                "path": relative_path,
                 "title": _text(metadata.get("title"), "Без названия"),
                 "artist": _text(metadata.get("artist"), "Неизвестный исполнитель"),
                 "album": album,
@@ -97,7 +123,7 @@ class Scanner:
             counters["indexed"] += 1
             if progress:
                 progress(dict(counters))
-        return ScanSnapshot(tuple(tracks), counters, covers)
+        return ScanSnapshot(tuple(tracks), counters, covers, changed)
 
 
 def scan(root: Path) -> ScanSnapshot:

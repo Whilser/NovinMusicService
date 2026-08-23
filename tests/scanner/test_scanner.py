@@ -122,6 +122,38 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(progress[-1]["discovered"], 1)
             self.assertEqual(snapshot.tracks[0]["cover_url"], "/api/covers/placeholder")
 
+    def test_unchanged_files_reuse_catalog_metadata_without_reading_tags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "Artist" / "Album" / "song.mp3"
+            audio.parent.mkdir(parents=True)
+            audio.write_bytes(b"audio")
+            first = Scanner(metadata_reader=lambda path: {"title": "Original", "artist": "Artist"}).scan(root)
+
+            calls = []
+            second = Scanner(metadata_reader=lambda path: calls.append(path) or {"title": "Changed"}).scan(
+                root, cached_tracks={first.tracks[0]["path"]: first.tracks[0]}
+            )
+
+            self.assertEqual(calls, [])
+            self.assertEqual(second.tracks[0]["title"], "Original")
+            self.assertEqual(second.changed, 0)
+
+    def test_changed_files_are_reindexed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "song.mp3"
+            audio.write_bytes(b"old")
+            first = Scanner(metadata_reader=lambda path: {"title": "Old"}).scan(root)
+            audio.write_bytes(b"new and larger")
+
+            second = Scanner(metadata_reader=lambda path: {"title": "New"}).scan(
+                root, cached_tracks={first.tracks[0]["path"]: first.tracks[0]}
+            )
+
+            self.assertEqual(second.tracks[0]["title"], "New")
+            self.assertEqual(second.changed, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
