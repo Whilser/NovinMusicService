@@ -17,6 +17,7 @@ _CACHE_TTL_SECONDS = 15 * 60
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _UPSTREAM_LIMIT = 8
 ALL_GENRE = "All"
+RUSSIAN_GENRE = "Russian"
 RADIO_GENRES = (ALL_GENRE, *DEFAULT_GENRES)
 
 
@@ -62,6 +63,8 @@ class RadioBrowserDirectory:
                         stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/topvote/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
                     if len(stations) < bounded_limit:
                         stations = self._merge_stations(stations, self._stations(self._payload("/json/stations/lastclick/8", {"hidebroken": "true"}), 8), limit=bounded_limit)
+                elif normalized_genre == RUSSIAN_GENRE:
+                    stations = self._stations(self._payload("/json/stations/bycountrycodeexact/RU", parameters), bounded_limit)
                 else:
                     # The exact endpoint compares the complete comma-separated
                     # tag string and therefore drops almost every useful

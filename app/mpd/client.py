@@ -96,7 +96,7 @@ class MpdClient:
             else:
                 values[normalized] = converted
 
-    def _run(self, commands: Iterable[str]) -> list[dict[str, Any]]:
+    def _run_once(self, commands: Iterable[str]) -> list[dict[str, Any]]:
         try:
             connection = socket.create_connection((self.host, self.port), self.timeout)
             connection.settimeout(self.timeout)
@@ -124,6 +124,22 @@ class MpdClient:
             raise
         except (OSError, UnicodeError) as error:
             raise MpdConnectionError(str(error)) from error
+
+    def _run(self, commands: Iterable[str]) -> list[dict[str, Any]]:
+        """Retry one fresh MPD connection for transient socket failures.
+
+        Radio streams can make the daemon briefly close its control socket while
+        its decoder is being replaced.  Commands are sent as a complete fresh
+        sequence, so the queue still converges on the requested station.
+        """
+        queued = list(commands)
+        try:
+            return self._run_once(queued)
+        except MpdConnectionError as first_error:
+            try:
+                return self._run_once(queued)
+            except MpdConnectionError:
+                raise first_error
 
     def status(self) -> dict[str, Any]:
         status, song = self._run(["status", "currentsong"])

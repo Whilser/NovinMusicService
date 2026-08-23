@@ -18,8 +18,9 @@ class HybridRadioDirectory:
         return self.shoutcast if self.shoutcast.configured else self.radio_browser
 
     def list_stations(self, genre: str = "Pop", search: str = "", limit: int = 18, refresh: bool = False) -> dict[str, Any]:
-        result = self.active.list_stations(genre=genre, search=search, limit=limit, refresh=refresh)
-        result["source"] = "shoutcast" if self.shoutcast.configured else "radio_browser"
+        directory = self.radio_browser if genre == "Russian" else self.active
+        result = directory.list_stations(genre=genre, search=search, limit=limit, refresh=refresh)
+        result["source"] = "shoutcast" if directory is self.shoutcast else "radio_browser"
         return result
 
     def station(self, station_id: str | int) -> dict[str, Any] | None:

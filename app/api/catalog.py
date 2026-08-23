@@ -57,6 +57,11 @@ def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50
     return catalog.list_albums(page=page, page_size=page_size, search=search)
 
 
+@router.get("/albums/recent")
+def recent_albums(limit: int = Query(default=7, ge=1, le=50), catalog: Catalog = Depends(get_catalog)) -> list:
+    return catalog.list_recent_albums(limit=limit)
+
+
 @router.get("/artists")
 def artists(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200), search: str = "",
            catalog: Catalog = Depends(get_catalog)) -> dict:

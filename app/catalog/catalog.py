@@ -112,6 +112,20 @@ class Catalog:
                     source TEXT NOT NULL DEFAULT '',
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE TABLE IF NOT EXISTS radio_stations (
+                    station_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    genre TEXT NOT NULL DEFAULT '',
+                    now_playing TEXT NOT NULL DEFAULT '',
+                    listeners INTEGER,
+                    bitrate INTEGER,
+                    stream_url TEXT NOT NULL,
+                    favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1)),
+                    saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS radio_stations_favorite
+                    ON radio_stations(favorite, updated_at DESC);
                 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
                 """
             )
@@ -256,6 +270,22 @@ class Catalog:
         ).fetchall()
         return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
 
+    def list_recent_albums(self, limit: int = 7) -> list[dict[str, Any]]:
+        if not isinstance(limit, int) or not 1 <= limit <= 50:
+            raise ValidationError("limit must be between 1 and 50", {"field": "limit"})
+        rows = self._connection.execute(
+            """SELECT album AS name,
+                       CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(album_artist,''),artist)) = 1
+                            THEN MAX(COALESCE(NULLIF(album_artist,''),artist))
+                            ELSE 'Разные исполнители' END AS album_artist,
+                       COUNT(*) AS track_count, COALESCE(SUM(duration),0) AS duration,
+                       MAX(cover_url) AS cover_url
+                FROM tracks WHERE album<>'' GROUP BY album
+                ORDER BY MAX(id) DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def list_artists(self, page: int = 1, page_size: int = 50, search: str = "") -> dict[str, Any]:
         limit, offset = self._page(page, page_size)
         clause, params = self._group_search_clause("artist", search)
@@ -344,6 +374,60 @@ class Catalog:
                 (track_id, next_rating, int(next_favorite)),
             )
         return self.get_track(track_id)
+
+    @staticmethod
+    def _radio_station(item: Mapping[str, Any]) -> dict[str, Any]:
+        station_id = str(item.get("id", "")).strip()
+        name = str(item.get("name", "")).strip()
+        stream_url = str(item.get("stream_url", "")).strip()
+        if not station_id or not name or not stream_url:
+            raise ValidationError("radio station requires id, name and stream_url")
+        def text(key: str, limit: int) -> str:
+            return str(item.get(key, "") or "").strip()[:limit]
+        def number(key: str) -> Optional[int]:
+            value = item.get(key)
+            return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
+        return {"id": station_id[:64], "name": name[:120], "genre": text("genre", 100), "now_playing": text("now_playing", 160), "listeners": number("listeners"), "bitrate": number("bitrate"), "stream_url": stream_url[:2048]}
+
+    def save_radio_stations(self, stations: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        saved = [self._radio_station(item) for item in stations]
+        with self._lock, self._connection:
+            for station in saved:
+                self._connection.execute(
+                    """INSERT INTO radio_stations(station_id,name,genre,now_playing,listeners,bitrate,stream_url)
+                       VALUES (:id,:name,:genre,:now_playing,:listeners,:bitrate,:stream_url)
+                       ON CONFLICT(station_id) DO UPDATE SET name=excluded.name,genre=excluded.genre,
+                       now_playing=excluded.now_playing,listeners=excluded.listeners,bitrate=excluded.bitrate,
+                       stream_url=excluded.stream_url,updated_at=CURRENT_TIMESTAMP""",
+                    station,
+                )
+        return saved
+
+    def list_radio_stations(self, favorite: Optional[bool] = None, limit: int = 100) -> list[dict[str, Any]]:
+        if not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValidationError("limit must be between 1 and 200", {"field": "limit"})
+        where, params = ("", ()) if favorite is None else (" WHERE favorite=?", (int(favorite),))
+        rows = self._connection.execute(
+            "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite FROM radio_stations"
+            + where + " ORDER BY favorite DESC,updated_at DESC LIMIT ?", (*params, limit)
+        ).fetchall()
+        return [{**dict(row), "favorite": bool(row["favorite"])} for row in rows]
+
+    def get_radio_station(self, station_id: str) -> Optional[dict[str, Any]]:
+        row = self._connection.execute(
+            "SELECT station_id AS id,name,genre,now_playing,listeners,bitrate,stream_url,favorite FROM radio_stations WHERE station_id=?", (station_id,)
+        ).fetchone()
+        return ({**dict(row), "favorite": bool(row["favorite"])} if row else None)
+
+    def set_radio_favorite(self, station: Mapping[str, Any], favorite: bool) -> dict[str, Any]:
+        if not isinstance(favorite, bool):
+            raise ValidationError("favorite must be a boolean", {"field": "favorite"})
+        saved = self.save_radio_stations([station])[0]
+        with self._lock, self._connection:
+            self._connection.execute("UPDATE radio_stations SET favorite=?,updated_at=CURRENT_TIMESTAMP WHERE station_id=?", (int(favorite), saved["id"]))
+        result = self.get_radio_station(saved["id"])
+        assert result is not None
+        return result
 
     def create_playlist(self, name: str) -> dict[str, Any]:
         name = name.strip()

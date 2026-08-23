@@ -201,5 +201,21 @@ class PreferenceTests(unittest.TestCase):
             catalog.close()
 
 
+class RadioStationPersistenceTests(unittest.TestCase):
+    def test_found_and_favorite_radio_stations_survive_reopening_database(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "catalog.sqlite3"
+            catalog = Catalog(database)
+            station = {"id": "station-1", "name": "Novin FM", "genre": "Rock", "stream_url": "https://radio.example/live"}
+            catalog.save_radio_stations([station])
+            catalog.set_radio_favorite(station, True)
+            catalog.close()
+
+            reopened = Catalog(database)
+            self.assertEqual(reopened.list_radio_stations(favorite=True)[0]["name"], "Novin FM")
+            self.assertEqual(reopened.get_radio_station("station-1")["stream_url"], "https://radio.example/live")
+            reopened.close()
+
+
 if __name__ == "__main__":
     unittest.main()

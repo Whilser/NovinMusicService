@@ -32,8 +32,11 @@ class RadioApiTests(unittest.TestCase):
                 catalog = client.get("/api/radio?genre=Pop")
                 self.assertEqual(catalog.status_code, 200)
                 self.assertEqual(catalog.json()["stations"][0]["id"], "7")
+                station = catalog.json()["stations"][0]
+                favorite = client.put("/api/radio/stations/7/favorite", json={"station": station, "favorite": True})
+                self.assertEqual(favorite.status_code, 200)
+                self.assertEqual(client.get("/api/radio/favorites").json()[0]["id"], "7")
                 played = client.post("/api/radio/play", json={"station_id": "7"})
                 self.assertEqual(played.status_code, 200)
                 self.assertEqual(mpd.stream, "https://yp.shoutcast.com/sbin/tunein-station.pls?id=7")
             application.dependency_overrides.clear()
-

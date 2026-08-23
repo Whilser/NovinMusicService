@@ -14,7 +14,7 @@ class RadioDirectoryError(Exception):
     """The upstream radio directory could not provide a usable station list."""
 
 
-DEFAULT_GENRES = ("Pop", "Rock", "Dance", "Hip Hop", "Jazz", "Classical", "Electronic", "Chillout")
+DEFAULT_GENRES = ("Pop", "Rock", "Dance", "Hip Hop", "Jazz", "Classical", "Electronic", "Chillout", "Russian")
 RADIO_GENRES = ("All", *DEFAULT_GENRES)
 _CACHE_TTL_SECONDS = 15 * 60
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
