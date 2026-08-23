@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 node_modules/
+.autopilot/
 __pycache__/
 .DS_Store
 dist/
