@@ -10,7 +10,7 @@ const routes = [
 ];
 const mobileRoutes = routes;
 const initialLocation = locationFromHash();
-const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, radioGenre: "All" };
+const state = { route: initialLocation.route, page: initialLocation.page, search: "", tracks: [], catalogTracks: [], playlists: [], selected: initialLocation.selected, player: null, catalogPageSize: DEFAULT_PAGE_SIZE, catalogPageSizeLoaded: false, albumSort: initialLocation.albumSort || "alphabet", albumSortFromUrl: Boolean(initialLocation.albumSort), radioGenre: "All" };
 const fullscreenPaletteCache = new Map();
 const legacyRadioFavorites = (() => {
   try { const saved = JSON.parse(localStorage.getItem("novin-radio-favorites") || "{}"); return saved && !Array.isArray(saved) ? new Map(Object.entries(saved)) : new Map(); }
@@ -111,16 +111,28 @@ function locationFromHash() {
   if (route === "playlists" && /^\d+$/.test(parts[1] || "")) selected = { id: Number(parts[1]) };
   const page = Math.max(1, Number(query.get("page")) || 1);
   if ((route === "albums" || route === "artists") && query.get("name")) selected = { type: route === "albums" ? "album" : "artist", name: query.get("name"), albumArtist: query.get("album_artist") || "", returnPage: Math.max(1, Number(query.get("return_page")) || 1) };
-  return { route, selected, page };
+  const albumSort = route === "albums" && ["alphabet", "recent"].includes(query.get("sort")) ? query.get("sort") : "";
+  return { route, selected, page, albumSort };
 }
-function routePath(route, page = 1) { const query = page > 1 ? `?${new URLSearchParams({ page: String(page) })}` : ""; return `#/${route}${query}`; }
-function selectedPath(type, name, albumArtist = "", returnPage = 1) { const query = new URLSearchParams({ name, return_page: String(returnPage) }); if (albumArtist) query.set("album_artist", albumArtist); return `#/${type === "album" ? "albums" : "artists"}?${query}`; }
+function routePath(route, page = 1) {
+  const query = new URLSearchParams();
+  if (route === "albums" && state.albumSort === "recent") query.set("sort", "recent");
+  if (page > 1) query.set("page", String(page));
+  return `#/${route}${query.size ? `?${query}` : ""}`;
+}
+function selectedPath(type, name, albumArtist = "", returnPage = 1) {
+  const query = new URLSearchParams({ name, return_page: String(returnPage) });
+  if (type === "album" && state.albumSort === "recent") query.set("sort", "recent");
+  if (albumArtist) query.set("album_artist", albumArtist);
+  return `#/${type === "album" ? "albums" : "artists"}?${query}`;
+}
 function formatTime(value) { const seconds = Math.max(0, Number(value) || 0); return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`; }
 function pageSize() { return state.catalogPageSize || DEFAULT_PAGE_SIZE; }
 async function ensureCatalogPageSize() {
   if (state.catalogPageSizeLoaded) return;
   const settings = await request("/settings").catch(() => ({}));
   state.catalogPageSize = [7, 14, 21, 28, 35, 42, 49].includes(Number(settings.catalog_page_size)) ? Number(settings.catalog_page_size) : DEFAULT_PAGE_SIZE;
+  if (!state.albumSortFromUrl && ["alphabet", "recent"].includes(settings.album_sort)) state.albumSort = settings.album_sort;
   state.catalogPageSizeLoaded = true;
 }
 function coverUrl(item) { return item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : ""); }
@@ -365,9 +377,18 @@ async function renderGroups(type) {
   const title = type === "albums" ? "Альбомы" : "Исполнители";
   const groupsQuery = new URLSearchParams({ page: String(state.page), page_size: String(pageSize()), search: state.search });
   const initialsQuery = new URLSearchParams({ kind: type, search: state.search, page_size: String(pageSize()) });
-  const [result, initials] = await Promise.all([request(`/${type}?${groupsQuery}`), request(`/catalog/initials?${initialsQuery}`)]);
+  const useAlphabet = type !== "albums" || state.albumSort === "alphabet";
+  if (type === "albums") groupsQuery.set("sort", state.albumSort);
+  const [result, initials] = await Promise.all([request(`/${type}?${groupsQuery}`), useAlphabet ? request(`/catalog/initials?${initialsQuery}`) : Promise.resolve(null)]);
   if (!result.items.length) replace(dom.content, empty(state.search ? "Ничего не найдено" : `Нет данных: ${title.toLowerCase()}`, state.search ? "Попробуйте изменить запрос." : "Запустите сканирование в настройках."));
-  else replace(dom.content, element("div", { class: "grid catalog-grid" }, result.items.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(result.total), alphabetIndex(initials.items.map((letter) => ({ letter })), "letter", initials.pages));
+  else {
+    const sortControl = type === "albums" ? element("div", { class: "album-sort", attrs: { "aria-label": "Сортировка альбомов" } }, [
+      element("span", { text: "Сортировка:" }),
+      element("button", { class: state.albumSort === "alphabet" ? "active" : "", text: "По алфавиту", dataset: { action: "album-sort", sort: "alphabet" }, attrs: { type: "button", "aria-pressed": String(state.albumSort === "alphabet") } }),
+      element("button", { class: state.albumSort === "recent" ? "active" : "", text: "Недавно добавленные", dataset: { action: "album-sort", sort: "recent" }, attrs: { type: "button", "aria-pressed": String(state.albumSort === "recent") } })
+    ]) : null;
+    replace(dom.content, sortControl, element("div", { class: "grid catalog-grid" }, result.items.map((item) => albumCard(item, type === "albums" ? "album" : "artist"))), pagination(result.total), initials ? alphabetIndex(initials.items.map((letter) => ({ letter })), "letter", initials.pages) : null);
+  }
 }
 
 function radioCard(station, index) {
@@ -563,6 +584,14 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]"); if (!button) return;
   await withButtonBusy(button, async () => { const action = button.dataset.action;
   if (action === "retry") await render();
+  else if (action === "album-sort") {
+    state.albumSort = button.dataset.sort === "recent" ? "recent" : "alphabet";
+    state.albumSortFromUrl = true; state.page = 1;
+    try { await request("/settings", { method: "PATCH", body: JSON.stringify({ album_sort: state.albumSort }) }); }
+    catch (error) { notify(apiMessage(error)); }
+    const next = routePath("albums");
+    if (location.hash === next) await render(); else location.hash = next;
+  }
   else if (action === "page") { state.page = Number(button.dataset.page); await render(); document.querySelector("#main").focus({ focusVisible: false }); }
   else if (action === "alphabet-jump") {
     const page = Number(button.dataset.page);
@@ -608,7 +637,13 @@ dom.dialog.querySelector("form").addEventListener("submit", savePlaylist);
 document.querySelector("#playlist-cancel").addEventListener("click", () => dom.dialog.close());
 document.querySelector("[data-skip-link]").addEventListener("click", (event) => { event.preventDefault(); document.querySelector("#main").focus(); });
 dom.search.addEventListener("input", () => { clearTimeout(dom.search.timer); dom.search.timer = setTimeout(async () => { state.search = dom.search.value.trim(); state.page = 1; state.selected = null; await render(); }, 280); });
-window.addEventListener("hashchange", async () => { const next = locationFromHash(); state.route = next.route; state.selected = next.selected; state.page = next.page; await render(); });
+window.addEventListener("hashchange", async () => {
+  const next = locationFromHash();
+  state.route = next.route; state.selected = next.selected; state.page = next.page;
+  state.albumSortFromUrl = Boolean(next.albumSort);
+  if (next.albumSort) state.albumSort = next.albumSort;
+  await render();
+});
 document.querySelector(".transport").addEventListener("click", async (event) => { const button = event.target.closest("[data-command]"); if (!button) return; await withButtonBusy(button, async () => { const name = button.dataset.command === "play" && state.player?.state === "play" ? "pause" : button.dataset.command; await command(name); }); });
 dom.seek.addEventListener("change", () => command("seek", { position: Number(dom.seek.value) }));
 dom.volume.addEventListener("change", () => command("volume", { volume: Number(dom.volume.value) }));

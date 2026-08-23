@@ -78,6 +78,7 @@ class CatalogQueryTests(unittest.TestCase):
             self.assertEqual(page["total"], 2)
             self.assertEqual(len(page["items"]), 1)
             self.assertEqual(catalog.list_albums()["total"], 2)
+            self.assertEqual([item["name"] for item in catalog.list_albums(sort="recent")["items"]], ["Other", "Shared"])
             self.assertEqual(catalog.list_artists()["total"], 2)
             self.assertEqual(catalog.list_catalog_initials("songs"), ["A", "B"])
             catalog.close()
@@ -197,6 +198,14 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(catalog.update_settings({"catalog_page_size": "28"})["catalog_page_size"], "28")
             with self.assertRaises(ValidationError):
                 catalog.update_settings({"catalog_page_size": "24"})
+            catalog.close()
+
+    def test_album_sort_setting_accepts_only_supported_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Catalog(Path(directory) / "catalog.sqlite3")
+            self.assertEqual(catalog.update_settings({"album_sort": "recent"})["album_sort"], "recent")
+            with self.assertRaises(ValidationError):
+                catalog.update_settings({"album_sort": "random"})
             catalog.close()
 
 

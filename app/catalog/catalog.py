@@ -16,7 +16,7 @@ TRACK_FIELDS = (
 ALLOWED_SETTINGS = frozenset(
     {
         "smb_host", "smb_share", "smb_username", "smb_mount_path", "smb_domain", "smb_options",
-        "mpd_host", "mpd_port", "mpd_uri_prefix", "catalog_page_size",
+        "mpd_host", "mpd_port", "mpd_uri_prefix", "catalog_page_size", "album_sort",
     }
 )
 SECRET_MARKERS = ("password", "secret", "token", "credential", "api_key", "apikey")
@@ -303,9 +303,14 @@ class Catalog:
         ).fetchall()
         return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
 
-    def list_albums(self, page: int = 1, page_size: int = 50, search: str = "") -> dict[str, Any]:
+    def list_albums(
+        self, page: int = 1, page_size: int = 50, search: str = "", sort: str = "alphabet"
+    ) -> dict[str, Any]:
+        if sort not in {"alphabet", "recent"}:
+            raise ValidationError("album sort must be alphabet or recent", {"field": "sort"})
         limit, offset = self._page(page, page_size)
         clause, params = self._group_search_clause("album", search)
+        order = "album COLLATE NOCASE" if sort == "alphabet" else "MAX(id) DESC,album COLLATE NOCASE"
         total = self._connection.execute(
             f"SELECT COUNT(DISTINCT album) FROM tracks WHERE album<>''{clause}", params
         ).fetchone()[0]
@@ -317,10 +322,10 @@ class Catalog:
                        COUNT(*) AS track_count,
                        COALESCE(SUM(duration),0) AS duration,MAX(cover_url) AS cover_url
                 FROM tracks WHERE album<>''""" + clause + """ GROUP BY album
-                ORDER BY album COLLATE NOCASE LIMIT ? OFFSET ?""",
+                ORDER BY """ + order + """ LIMIT ? OFFSET ?""",
             (*params, limit, offset),
         ).fetchall()
-        return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total}
+        return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total, "sort": sort}
 
     def list_recent_albums(self, limit: int = 7) -> list[dict[str, Any]]:
         if not isinstance(limit, int) or not 1 <= limit <= 50:
@@ -725,6 +730,8 @@ class Catalog:
             raise ValidationError("setting values must be strings", {"field": "settings"})
         if "catalog_page_size" in mapping and mapping["catalog_page_size"] not in {"7", "14", "21", "28", "35", "42", "49"}:
             raise ValidationError("catalog_page_size must be a multiple of 7 between 7 and 49", {"field": "catalog_page_size"})
+        if "album_sort" in mapping and mapping["album_sort"] not in {"alphabet", "recent"}:
+            raise ValidationError("album_sort must be alphabet or recent", {"field": "album_sort"})
         with self._lock, self._connection:
             for key, value in mapping.items():
                 self._connection.execute(

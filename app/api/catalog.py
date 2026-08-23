@@ -53,8 +53,9 @@ def tracks(
 
 @router.get("/albums")
 def albums(page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200), search: str = "",
+           sort: str = Query(default="alphabet", pattern="^(alphabet|recent)$"),
            catalog: Catalog = Depends(get_catalog)) -> dict:
-    return catalog.list_albums(page=page, page_size=page_size, search=search)
+    return catalog.list_albums(page=page, page_size=page_size, search=search, sort=sort)
 
 
 @router.get("/albums/recent")

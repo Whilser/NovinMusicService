@@ -232,6 +232,9 @@ button svg, a svg { display: block; }
 .pagination .page-number { border: 1px solid #d8d8dc; background: #fff; }
 .pagination .page-number.active { color: #fff; border-color: var(--accent); background: var(--accent); opacity: 1; }
 .pagination-ellipsis { padding: 0 .15rem; color: var(--muted); }
+.album-sort { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -4px 0 2px; color: var(--muted); font-size: .9rem; }
+.album-sort button { border: 0; border-radius: 999px; padding: .48rem .82rem; color: #3a3a3e; background: #eeeef0; font: inherit; font-weight: 650; cursor: pointer; }
+.album-sort button.active { color: #fff; background: var(--accent); }
 
 .empty, .error-state, .loading { min-height: 260px; border: 0; border-radius: 14px; background: #f7f7f8; }
 .empty-icon { display: grid; place-items: center; color: #a7a7ac; }
