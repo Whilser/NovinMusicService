@@ -91,6 +91,15 @@ button svg, a svg { display: block; }
 .alphabet-index button:hover, .alphabet-index button:focus-visible { background: #ffe8ec; outline: 0; }
 .cover { border-radius: 10px; box-shadow: 0 8px 22px #00000014; }
 .cover-placeholder { color: #aaaab0; background: linear-gradient(145deg, #e8e8ea, #f7f7f8); }
+.album-text-cover { display: flex; flex-direction: column; justify-content: flex-end; width: 100%; height: 100%; padding: 14%; color: #fff; overflow: hidden; }
+.album-text-cover strong { display: -webkit-box; overflow: hidden; font-size: clamp(1rem, 1.6vw, 1.5rem); font-weight: 800; line-height: 1.05; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+.album-text-cover span { margin-top: .45rem; overflow: hidden; font-size: clamp(.72rem, 1.05vw, .94rem); font-weight: 600; line-height: 1.15; opacity: .86; text-overflow: ellipsis; white-space: nowrap; }
+.album-text-cover--rose { background: linear-gradient(145deg, #8e234d, #f44b7f); }
+.album-text-cover--gold { background: linear-gradient(145deg, #795900, #e8bb00); }
+.album-text-cover--blue { background: linear-gradient(145deg, #27427e, #668af4); }
+.album-text-cover--teal { background: linear-gradient(145deg, #00595b, #15a7a0); }
+.album-text-cover--violet { background: linear-gradient(145deg, #51378e, #b06cf5); }
+.album-text-cover--coral { background: linear-gradient(145deg, #c54432, #fa8661); }
 .card h3 { margin-top: .58rem; font-size: .9rem; font-weight: 600; }
 .card p { font-size: .79rem; }
 
@@ -198,6 +207,7 @@ button svg, a svg { display: block; }
 }
 .detail-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .detail-cover .cover-placeholder { width: 100%; height: 100%; }
+.detail-cover .album-text-cover { border-radius: inherit; }
 .detail-kind { margin: 0 0 7px; color: #88888d; font-size: .75rem; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
 .detail-copy h2 { margin: 0; font-size: clamp(2rem, 4.5vw, 3.5rem); line-height: 1.02; letter-spacing: -.055em; }
 .detail-artist { margin: 8px 0 0; color: var(--accent); font-size: 1.18rem; font-weight: 600; }

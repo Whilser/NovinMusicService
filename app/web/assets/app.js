@@ -205,10 +205,25 @@ function notify(message) {
 }
 function section(title, body, actions = []) { return element("section", {}, [element("div", { class: "section-heading" }, [element("h2", { text: title }), ...actions]), body]); }
 
-function cover(item, className = "cover") {
+function albumCoverPalette(value) {
+  let hash = 0;
+  for (const character of String(value)) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+  return ["rose", "gold", "blue", "teal", "violet", "coral"][Math.abs(hash) % 6];
+}
+
+function albumTextCover(item, options) {
+  const album = options.albumName || item.name || item.album || "Без названия";
+  const artist = options.artistName || item.album_artist || item.artist || "Неизвестный исполнитель";
+  return element("span", { class: `album-text-cover album-text-cover--${albumCoverPalette(`${artist}:${album}`)}`, attrs: { "aria-hidden": "true" } }, [
+    element("strong", { text: album }), element("span", { text: artist })
+  ]);
+}
+
+function cover(item, className = "cover", options = {}) {
   const box = element("div", { class: className });
   const url = coverUrl(item);
   if (url) box.append(element("img", { src: url, alt: "", loading: "lazy" }));
+  else if (options.albumPlaceholder) box.append(albumTextCover(item, options));
   else box.append(element("span", { class: "cover-placeholder", attrs: { "aria-hidden": "true" } }, [icon("music", className === "row-cover" ? 20 : 42)]));
   if (!url && item.artist_image) {
     deferArtistArtwork(box, item.artist_image, item.artist_image_status);
@@ -262,7 +277,7 @@ function albumCard(item, type = "album") {
   const albumArtist = item.album_artist || "";
   const cardItem = type === "artist" ? { ...item, artist_image: item.name } : item;
   return element("article", { class: "card" }, [
-    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist, returnPage: String(state.page) }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem)]),
+    element("button", { class: "cover-button", dataset: { action: "select-group", type, name, albumArtist, returnPage: String(state.page) }, attrs: { type: "button", "aria-label": `Открыть ${name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(cardItem, "cover", { albumPlaceholder: type === "album", albumName: name, artistName: albumArtist })]),
     element("h3", { text: name }), element("p", { text: item.artist || item.album_artist || `${item.track_count || 0} треков` })
   ]);
 }
@@ -471,7 +486,7 @@ async function renderSelectedGroup(type, name, albumArtist = "") {
     : `${items.length} ${items.length === 1 ? "песня" : "песен"}`;
   const listRoute = type === "album" ? "albums" : "artists";
   const detail = element("section", { class: "detail-hero" }, [
-    cover(representative, "detail-cover"),
+    cover(representative, "detail-cover", { albumPlaceholder: type === "album", albumName: name, artistName: subtitle }),
     element("div", { class: "detail-copy" }, [
       element("p", { class: "detail-kind", text: type === "album" ? "Альбом" : "Исполнитель" }),
       element("h2", { text: name }),
