@@ -504,6 +504,18 @@ function selectField(name, label, value, options) {
   select.value = value || String(DEFAULT_PAGE_SIZE);
   return element("label", {}, [element("span", { text: label }), select]);
 }
+function statusLabel(value, fallback = "Неизвестно") {
+  const labels = {
+    idle: "Ожидание",
+    running: "Выполняется",
+    completed: "Завершено",
+    error: "Ошибка",
+    connected: "Подключено",
+    not_configured: "Не настроено",
+    offline: "Не в сети"
+  };
+  return labels[value] || fallback;
+}
 function serviceHeading(title, tone, statusText) {
   return element("h2", { class: "service-heading" }, [element("span", { text: title }), element("span", { class: `service-status service-status--${tone}`, attrs: { role: "status", "aria-label": statusText } })]);
 }
@@ -514,14 +526,14 @@ async function renderSettings() {
   const share = await request("/share/status").catch(() => ({ state: "error" }));
   const player = await request("/player/status").catch(() => ({ online: false }));
   const scan = await request("/scan/status");
-  const authentication = share.authentication === "credentials" ? "логин и пароль из .env" : share.authentication === "guest" ? "guest" : "ещё не проверялась";
+  const authentication = share.authentication === "credentials" ? "логин и пароль из .env" : share.authentication === "guest" ? "гостевой доступ" : "ещё не проверялась";
   const smbTone = share.state === "connected" ? "green" : share.state === "not_configured" ? "red" : "yellow";
   const mpdTone = player.online ? "green" : (settings.mpd_host || settings.mpd_port ? "yellow" : "red");
-  const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [serviceHeading("Сетевая папка SMB", smbTone, `SMB: ${share.state === "connected" ? "подключено" : share.state === "not_configured" ? "не настроено" : "оффлайн"}`), element("p", { text: `Статус: ${share.state || "не настроено"} · Авторизация: ${authentication}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
+  const smb = element("form", { class: "settings-card", dataset: { form: "smb" } }, [serviceHeading("Сетевая папка SMB", smbTone, `SMB: ${share.state === "connected" ? "подключено" : share.state === "not_configured" ? "не настроено" : "оффлайн"}`), element("p", { text: `Статус: ${statusLabel(share.state, "Не в сети")} · Авторизация: ${authentication}` }), element("div", { class: "field-grid" }, [field("smb_host", "Адрес NAS", settings.smb_host), field("smb_share", "Имя шары", settings.smb_share), field("smb_domain", "Домен (необязательно)", settings.smb_domain), field("smb_options", "Дополнительные опции", settings.smb_options)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Применить и проверить", type: "submit" })])]);
   const mpd = element("form", { class: "settings-card", dataset: { form: "mpd" } }, [serviceHeading("MPD", mpdTone, `MPD: ${player.online ? "подключён" : mpdTone === "red" ? "не настроен" : "оффлайн"}`), element("p", { text: "Пароль, если нужен, задаётся только переменной MPD_PASSWORD." }), element("div", { class: "field-grid" }, [field("mpd_host", "Host", settings.mpd_host || "host.docker.internal"), field("mpd_port", "Port", settings.mpd_port || "6600", "number"), field("mpd_uri_prefix", "URI-префикс", settings.mpd_uri_prefix)]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить и проверить", type: "submit" })])]);
   const counters = scan.counters || {}; const progress = scan.state === "running" ? Math.min(95, (counters.discovered || 0) ? 55 + (counters.indexed || 0) / counters.discovered * 40 : 15) : scan.state === "completed" ? 100 : 0;
   const appearance = element("form", { class: "settings-card", dataset: { form: "appearance" } }, [element("h2", { text: "Отображение" }), element("p", { text: "Количество карточек на одной странице разделов «Альбомы» и «Исполнители»." }), element("div", { class: "field-grid" }, [selectField("catalog_page_size", "Обложек на странице", String(state.catalogPageSize), [7, 14, 21, 28, 35, 42, 49])]), element("div", { class: "button-row" }, [element("button", { class: "primary", text: "Сохранить", type: "submit" })])]);
-  const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${scan.state || "не запускалось"}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: scan.state === "running" ? "primary is-busy" : "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan", ...(scan.state === "running" ? { busy: "true" } : {}) }, attrs: { type: "button", ...(scan.state === "running" ? { "aria-busy": "true", "aria-disabled": "true" } : {}) } })]);
+  const scanner = element("section", { class: "settings-card" }, [element("h2", { text: "Сканирование медиатеки" }), element("p", { text: scan.error?.message || `Статус: ${statusLabel(scan.state, "Не запускалось")}` }), element("div", { class: "scan-progress", attrs: { role: "progressbar", "aria-valuenow": String(Math.round(progress)), "aria-valuemin": "0", "aria-valuemax": "100" } }, [element("span", { attrs: { style: `width:${progress}%` } })]), element("p", { text: `Найдено ${counters.discovered || 0} · добавлено ${counters.indexed || 0} · пропущено ${(counters.unreadable || 0) + (counters.unsupported || 0)}` }), element("button", { class: scan.state === "running" ? "primary is-busy" : "primary", text: scan.state === "running" ? "Сканирование…" : "Пересканировать", disabled: scan.state === "running", dataset: { action: "scan", ...(scan.state === "running" ? { busy: "true" } : {}) }, attrs: { type: "button", ...(scan.state === "running" ? { "aria-busy": "true", "aria-disabled": "true" } : {}) } })]);
   replace(dom.content, element("div", { class: "settings-grid" }, [smb, mpd, appearance, scanner]));
   clearTimeout(renderSettings.pollTimer);
   if (scan.state === "running") renderSettings.pollTimer = setTimeout(() => { if (state.route === "settings") renderSettings().catch(errorView); }, 1000);
@@ -698,7 +710,7 @@ function applyFullscreenPalette(url, image) {
 function updateFullscreenPlayer(player, track) {
   const song = player?.song; const online = Boolean(player?.online); const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0);
   dom.fullscreenTitle.textContent = song?.title || song?.file || "Ничего не играет";
-  dom.fullscreenArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
+  dom.fullscreenArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD не в сети");
   dom.fullscreenElapsed.textContent = formatTime(elapsed); dom.fullscreenDuration.textContent = formatTime(duration);
   dom.fullscreenSeek.max = String(Math.max(1, duration)); dom.fullscreenSeek.value = String(Math.min(elapsed, duration || 1)); dom.fullscreenVolume.value = String(Number(player?.volume || 0));
   replace(dom.fullscreenPlay, icon(player?.state === "play" ? "pause" : "play", 28)); dom.fullscreenPlay.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
@@ -710,7 +722,7 @@ function closeFullscreenPlayer() { dom.fullscreen.hidden = true; document.body.c
 
 async function updatePlayer(player) {
   state.player = player; const online = Boolean(player?.online); dom.player.classList.toggle("online", online); dom.player.classList.toggle("offline", !online); dom.playerState.textContent = online ? (player.state === "play" ? "Играет" : "Пауза") : "Не в сети";
-  const song = player?.song; dom.playerTitle.textContent = song?.title || song?.file || "Ничего не играет"; dom.playerArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD offline");
+  const song = player?.song; dom.playerTitle.textContent = song?.title || song?.file || "Ничего не играет"; dom.playerArtist.textContent = song?.artist || (online ? "MPD подключён" : "MPD не в сети");
   const elapsed = Number(player?.elapsed || 0); const duration = Number(player?.duration || song?.duration || 0); dom.elapsed.textContent = formatTime(elapsed); dom.duration.textContent = formatTime(duration); dom.seek.max = String(Math.max(1, duration)); dom.seek.value = String(Math.min(elapsed, duration || 1)); dom.volume.value = String(Number(player?.volume || 0));
   for (const control of [...document.querySelectorAll("[data-command]"), dom.seek, dom.volume]) { const disabled = !online || control.dataset.busy === "true"; control.disabled = disabled; control.setAttribute("aria-disabled", String(disabled)); }
   const toggle = document.querySelector(".play-toggle"); replace(toggle, icon(player?.state === "play" ? "pause" : "play", 17)); toggle.setAttribute("aria-label", player?.state === "play" ? "Пауза" : "Воспроизвести");
