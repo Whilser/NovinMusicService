@@ -320,6 +320,7 @@ async function loadTracks(extra = "") {
 }
 
 async function renderHome() {
+  if (state.search) return renderGlobalSearch();
   const allTracks = await fetchAllTracks();
   const albums = await request("/albums/recent?limit=7");
   state.catalogTracks = allTracks; state.tracks = [...allTracks].sort((left, right) => Number(right.id) - Number(left.id)).slice(0, 12);
@@ -329,6 +330,33 @@ async function renderHome() {
     section("Недавно добавлено", trackList(state.tracks), playButtons(state.tracks)),
     albums.length ? section("Альбомы", element("div", { class: "grid" }, albums.map((item) => albumCard(item)))) : null,
     favorites.length ? section("Избранное", trackList(favorites)) : null
+  );
+}
+
+async function renderGlobalSearch() {
+  const query = state.search.trim();
+  dom.title.textContent = "Поиск";
+  const params = new URLSearchParams({ page: "1", page_size: "7", search: query });
+  const [albums, artists, tracks, playlists] = await Promise.all([
+    request(`/albums?${params}`), request(`/artists?${params}`),
+    request(`/tracks?${new URLSearchParams({ limit: "7", offset: "0", search: query })}`), request("/playlists")
+  ]);
+  const normalized = query.toLocaleLowerCase("ru");
+  const foundPlaylists = playlists.filter((playlist) => playlist.name.toLocaleLowerCase("ru").includes(normalized));
+  state.tracks = tracks.items;
+  state.playlists = playlists;
+  const sections = [
+    albums.items.length ? section("Альбомы", element("div", { class: "grid" }, albums.items.map((item) => albumCard(item)))) : null,
+    artists.items.length ? section("Исполнители", element("div", { class: "grid" }, artists.items.map((item) => albumCard(item, "artist")))) : null,
+    tracks.items.length ? section("Песни", trackList(tracks.items)) : null,
+    foundPlaylists.length ? section("Плейлисты", element("div", { class: "grid" }, foundPlaylists.map((playlist) => element("article", { class: "card" }, [
+      element("button", { class: "cover-button", dataset: { action: "open-playlist", id: String(playlist.id) }, attrs: { type: "button", "aria-label": `Открыть ${playlist.name}`, style: "display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;cursor:pointer" } }, [cover(playlist)]),
+      element("h3", { text: playlist.name }), element("p", { text: `${playlist.track_count || 0} треков` })
+    ])))) : null
+  ];
+  replace(dom.content,
+    element("div", { class: "search-results-heading" }, [element("h2", { text: `Результаты поиска: ${query}` })]),
+    sections.filter(Boolean).length ? sections : empty("Ничего не найдено", "Попробуйте изменить запрос.")
   );
 }
 
