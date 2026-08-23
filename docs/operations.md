@@ -5,7 +5,7 @@
 На сервере Debian/Ubuntu перейдите в checkout и запустите установщик:
 
 ```sh
-cd /home/whilser/NovinMusicService
+cd /home/user/NovinMusicService
 ./scripts/install-novin-music.sh
 ```
 

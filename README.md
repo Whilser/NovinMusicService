@@ -7,7 +7,7 @@
 На Debian/Ubuntu-сервере из checkout выполните один скрипт:
 
 ```sh
-cd /home/whilser/NovinMusicService
+cd /home/user/NovinMusicService
 ./scripts/install-novin-music.sh
 ```
 
@@ -59,7 +59,7 @@ Novin отправляет MPD URI относительно его `music_direct
 Интернет-радио или обрыв сетевого потока могут оставить управляющий сокет MPD без ответа. Скрипт ниже отключает конфликтующую socket-активацию MPD, включает systemd timer и раз в минуту проверяет протокольный ответ MPD. Если он не отвечает, MPD автоматически перезапускается:
 
 ```sh
-sudo /home/whilser/NovinMusicService/scripts/configure-mpd-recovery.sh
+sudo /home/user/NovinMusicService/scripts/configure-mpd-recovery.sh
 systemctl status novin-mpd-watchdog.timer
 ```
 
