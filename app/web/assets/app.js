@@ -175,7 +175,22 @@ function empty(title, text, action) {
 }
 function errorView(error) { replace(dom.content, element("div", { class: "error-state" }, [element("h2", { text: "Не удалось загрузить" }), element("p", { text: apiMessage(error) }), element("button", { class: "primary", text: "Повторить", dataset: { action: "retry" }, attrs: { type: "button" } })])); }
 function actionError(error) { errorView(error); dom.content.setAttribute("aria-busy", "false"); }
-function notify(message) { dom.notice.textContent = message; dom.notice.hidden = false; clearTimeout(notify.timer); notify.timer = setTimeout(() => { dom.notice.hidden = true; }, 4500); }
+function notify(message) {
+  clearTimeout(notify.timer);
+  clearTimeout(notify.hideTimer);
+  dom.notice.textContent = message;
+  dom.notice.hidden = false;
+  dom.notice.classList.remove("is-leaving");
+  requestAnimationFrame(() => dom.notice.classList.add("is-visible"));
+  notify.timer = setTimeout(() => {
+    dom.notice.classList.remove("is-visible");
+    dom.notice.classList.add("is-leaving");
+    notify.hideTimer = setTimeout(() => {
+      dom.notice.hidden = true;
+      dom.notice.classList.remove("is-leaving");
+    }, 220);
+  }, 4200);
+}
 function section(title, body, actions = []) { return element("section", {}, [element("div", { class: "section-heading" }, [element("h2", { text: title }), ...actions]), body]); }
 
 function cover(item, className = "cover") {

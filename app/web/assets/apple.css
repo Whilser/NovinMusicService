@@ -323,22 +323,39 @@ body.fullscreen-open { overflow: hidden; }
 }
 
 /* Notifications float above the view and never reflow the library. */
-.notice {
-  position: fixed;
-  z-index: 100;
-  top: 22px;
-  right: 22px;
-  max-width: min(390px, calc(100vw - 32px));
-  margin: 0;
+#notice.notice {
+  position: fixed !important;
+  z-index: 1100;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  left: auto !important;
+  width: min(390px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  margin: 0 !important;
   padding: .86rem 1.05rem;
   border: 1px solid #f4b9c3;
   border-radius: 14px;
-  background: rgba(255,247,248,.94);
+  background: rgba(255,247,248,.96);
   color: #a80d27;
   box-shadow: 0 16px 42px #8d122933;
   backdrop-filter: blur(18px);
-  animation: novin-notice-in .24s ease-out;
+  opacity: 0;
+  transform: translateY(-10px) translateX(8px);
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
 }
+
+#notice.notice.is-visible {
+  opacity: 1;
+  transform: translateY(0) translateX(0);
+}
+
+#notice.notice.is-leaving {
+  opacity: 0;
+  transform: translateY(-8px) translateX(8px);
+}
+
+#notice.notice[hidden] { display: none !important; }
 
 @keyframes novin-notice-in {
   from { opacity: 0; transform: translateY(-10px) translateX(8px); }
