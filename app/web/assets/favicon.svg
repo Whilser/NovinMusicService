@@ -9,13 +9,10 @@
       <stop stop-color="#fff" stop-opacity=".38"/>
       <stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
-    <filter id="note-shadow" x="13" y="13" width="39" height="39" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-color="#7e1537" flood-opacity=".32"/>
-    </filter>
   </defs>
   <rect width="64" height="64" rx="17" fill="url(#novin-red)"/>
   <path d="M4 18C7 9.5 16 4 27 4h20c7.2 0 11.6 3.2 13 7.7C48 8.2 24 10.5 4 18Z" fill="url(#gloss)"/>
-  <g filter="url(#note-shadow)" fill="#fff">
+  <g fill="#fff">
     <path d="M30.6 15.5v25.7h4.5V20.1c4.9 1.1 9.1 4.6 10.6 8.6.5-6.7-5.4-12.2-15.1-13.2Z"/>
     <ellipse cx="25" cy="43.2" rx="9.1" ry="6.1" transform="rotate(-16 25 43.2)"/>
   </g>
