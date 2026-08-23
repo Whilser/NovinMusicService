@@ -135,7 +135,12 @@ async function ensureCatalogPageSize() {
   if (!state.albumSortFromUrl && ["alphabet", "recent"].includes(settings.album_sort)) state.albumSort = settings.album_sort;
   state.catalogPageSizeLoaded = true;
 }
-function coverUrl(item) { return item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : ""); }
+function coverUrl(item) {
+  const url = item.cover_url || (item.cover_id ? `${API}/covers/${encodeURIComponent(item.cover_id)}` : "");
+  // The scanner stores this safe SVG for missing embedded/folder artwork. It is
+  // not a real cover, so album cards use their gradient text cover instead.
+  return url === "/api/covers/placeholder" ? "" : url;
+}
 function apiMessage(error) { return error?.error?.message || error?.message || "Не удалось выполнить запрос"; }
 
 async function request(path, options = {}) {
