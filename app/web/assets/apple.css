@@ -91,7 +91,7 @@ button svg, a svg { display: block; }
 .alphabet-index button:hover, .alphabet-index button:focus-visible { background: #ffe8ec; outline: 0; }
 .cover { border-radius: 10px; box-shadow: 0 8px 22px #00000014; }
 .cover-placeholder { color: #aaaab0; background: linear-gradient(145deg, #e8e8ea, #f7f7f8); }
-.album-text-cover { display: flex; flex-direction: column; justify-content: flex-end; width: 100%; height: 100%; padding: 14%; color: #fff; overflow: hidden; }
+.album-text-cover { display: flex; flex-direction: column; justify-content: flex-start; width: 100%; height: 100%; padding: 14%; color: #fff; overflow: hidden; }
 .album-text-cover strong { display: -webkit-box; overflow: hidden; font-size: clamp(1rem, 1.6vw, 1.5rem); font-weight: 800; line-height: 1.05; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .album-text-cover span { margin-top: .45rem; overflow: hidden; font-size: clamp(.72rem, 1.05vw, .94rem); font-weight: 600; line-height: 1.15; opacity: .86; text-overflow: ellipsis; white-space: nowrap; }
 .album-text-cover--rose { background: linear-gradient(145deg, #8e234d, #f44b7f); }
